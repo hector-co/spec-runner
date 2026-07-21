@@ -5,6 +5,19 @@ namespace SpecRunner.Tests.Fakes;
 
 public class FakeGitHubService : IGitHubService
 {
+    public Task<string> GetAuthenticatedLoginAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult("spec-runner-bot");
+
+    public Task<IReadOnlyList<GitHubIssue>> ListOpenIssuesWithCommentsAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubIssue>>(Array.Empty<GitHubIssue>());
+
+    public Task<IReadOnlyList<GitHubReaction>> ListCommentReactionsAsync(long commentId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubReaction>>(Array.Empty<GitHubReaction>());
+
+    public Task AddCommentReactionAsync(long commentId, string reactionType, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task CreateIssueCommentAsync(int issueNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task<int> CreatePullRequestAsync(string title, string body, string headBranch, string baseBranch, CancellationToken cancellationToken = default)
         => Task.FromResult(0);
 

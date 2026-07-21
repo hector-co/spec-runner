@@ -34,6 +34,16 @@ public class ClaudeCliAgentSessionTests
     }
 
     [Fact]
+    public async Task StartAsyncLaunchesProcessWithPermissionPromptsDisabled()
+    {
+        var (session, factory) = CreateSession();
+
+        await session.StartAsync("propose a change for issue 45");
+
+        Assert.Contains("--dangerously-skip-permissions", factory.Arguments!);
+    }
+
+    [Fact]
     public async Task StartAsyncFallsBackToLocalRepositoryPathWhenWorkingDirectoryUnset()
     {
         var (session, factory) = CreateSession(
@@ -131,6 +141,69 @@ public class ClaudeCliAgentSessionTests
         await session.StopAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => session.SendCommandAsync("text"));
+    }
+
+    [Fact]
+    public async Task CloseInputAsyncClosesStandardInputWithoutKillingOrChangingState()
+    {
+        var (session, factory) = CreateSession();
+        await session.StartAsync("prompt");
+
+        await session.CloseInputAsync();
+
+        Assert.True(factory.LastCreated!.StandardInputClosed);
+        Assert.False(factory.LastCreated.Killed);
+        Assert.Equal(CliAgentSessionState.Running, session.State);
+    }
+
+    [Fact]
+    public async Task CloseInputAsyncThrowsWhenNotStarted()
+    {
+        var (session, _) = CreateSession();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.CloseInputAsync());
+    }
+
+    [Fact]
+    public async Task CloseInputAsyncThrowsWhenCompleted()
+    {
+        var (session, factory) = CreateSession();
+        await session.StartAsync("prompt");
+        factory.LastCreated!.SimulateExit(0);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.CloseInputAsync());
+    }
+
+    [Fact]
+    public async Task CloseInputAsyncThrowsWhenFailed()
+    {
+        var (session, factory) = CreateSession();
+        await session.StartAsync("prompt");
+        factory.LastCreated!.SimulateExit(1);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.CloseInputAsync());
+    }
+
+    [Fact]
+    public async Task CloseInputAsyncThrowsWhenStopped()
+    {
+        var (session, _) = CreateSession();
+        await session.StartAsync("prompt");
+        await session.StopAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.CloseInputAsync());
+    }
+
+    [Fact]
+    public async Task SessionWithClosedInputStillReachesCompletedWhenProcessExits()
+    {
+        var (session, factory) = CreateSession();
+        await session.StartAsync("prompt");
+
+        await session.CloseInputAsync();
+        factory.LastCreated!.SimulateExit(0);
+
+        Assert.Equal(CliAgentSessionState.Completed, session.State);
     }
 
     [Fact]

@@ -12,6 +12,8 @@ public interface ICliAgentSession : IAsyncDisposable
 
     Task SendCommandAsync(string text, CancellationToken cancellationToken = default);
 
+    Task CloseInputAsync(CancellationToken cancellationToken = default);
+
     Task CancelCurrentRequestAsync(CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);
