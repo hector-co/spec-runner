@@ -27,8 +27,8 @@ builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnec
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
-    var filePath = Path.Combine(options.LocalRepositoryPath, ".specrunner", "state.json");
-    return new JsonFileStateStore(filePath);
+    var filePath = Path.Combine(options.LocalRepositoryPath, ".specrunner", "state.db");
+    return new SqliteStateStore(filePath);
 });
 
 using var host = builder.Build();

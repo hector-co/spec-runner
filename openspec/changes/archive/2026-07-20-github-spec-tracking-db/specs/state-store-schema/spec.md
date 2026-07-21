@@ -1,12 +1,4 @@
-# state-store-schema
-
-## Purpose
-
-TBD - defines the local state-store schema associating issues, PRs,
-comments, and specs, the persistence interface, spec name resolution, and
-the (initially unimplemented) git/GitHub service contracts.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: State store schema associates issues, PRs, comments, and specs
 `SpecRunner.Core` SHALL define record types capturing, at minimum: an
@@ -88,43 +80,3 @@ than a whole-store read/modify/write.
   comment identifier that already exists, supplying status `done`
 - **THEN** the existing comment record SHALL be updated to status `done`
   rather than a duplicate comment record being created
-
-### Requirement: Spec name resolution from issue number and title
-`SpecRunner.Core` SHALL define an `ISpecNameResolver` with a fully
-implemented default that produces spec/change names in the format
-`{issue-number}-{sanitized-issue-title}`, where the title is lower-cased,
-whitespace runs are replaced with single dashes, and characters invalid in
-a filesystem folder name are removed.
-
-#### Scenario: Title with spaces and mixed case
-- **WHEN** resolving a spec name for issue number `45` with title
-  `"Add Login Page"`
-- **THEN** the resolver SHALL return `"45-add-login-page"`
-
-#### Scenario: Title with invalid folder-name characters
-- **WHEN** resolving a spec name for issue number `7` with title
-  `"Fix: crash on save/load?"`
-- **THEN** the resolver SHALL return a value containing no characters that
-  are invalid in a filesystem folder name, with the number `7` as the
-  leading segment
-
-### Requirement: Git and GitHub service contracts are defined but unimplemented
-`SpecRunner.Core` SHALL define `IGitService` (covering create branch,
-switch branch, commit, push, and pull) and `IGitHubService` (covering
-create PR, create draft PR, read PR comments, write PR comments, and mark
-PR ready for review) as interfaces only. `SpecRunner.Git` and
-`SpecRunner.GitHub` SHALL each provide a placeholder implementation that
-compiles and can be registered in dependency injection, but that throws
-`NotImplementedException` when any member is invoked.
-
-#### Scenario: Placeholder git service throws when invoked
-- **WHEN** a method on the registered `IGitService` implementation is
-  called
-- **THEN** it SHALL throw `NotImplementedException` rather than performing
-  any git operation
-
-#### Scenario: Placeholder GitHub service throws when invoked
-- **WHEN** a method on the registered `IGitHubService` implementation is
-  called
-- **THEN** it SHALL throw `NotImplementedException` rather than performing
-  any GitHub API call

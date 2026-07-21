@@ -10,15 +10,15 @@ strongly-typed options model.
 
 ### Requirement: Configuration model exposes required settings
 `SpecRunner.Core` SHALL define a `SpecRunnerOptions` model exposing, at
-minimum: a GitHub personal access token, the target repository owner, the
-target repository name, the local repository path, the base branch name
-used for all PRs, and the per-task timeout. `SpecRunner.Console` SHALL
-bind this model from configuration via the standard `IOptions` pattern.
+minimum: a GitHub personal access token, the target repository URL, the
+local repository path, the base branch name used for all PRs, and the
+per-task timeout. `SpecRunner.Console` SHALL bind this model from
+configuration via the standard `IOptions` pattern.
 
 #### Scenario: Options bind from appsettings.json
 - **WHEN** an `appsettings.json` file supplies values for
-  `GitHubToken`, `RepositoryOwner`, `RepositoryName`,
-  `LocalRepositoryPath`, `BaseBranchName`, and `TaskTimeout`
+  `GitHubToken`, `RepositoryUrl`, `LocalRepositoryPath`,
+  `BaseBranchName`, and `TaskTimeout`
 - **THEN** `IOptions<SpecRunnerOptions>` resolved from the host SHALL
   expose those values unchanged
 
