@@ -1,0 +1,20 @@
+using SpecRunner.Core.Abstractions;
+using SpecRunner.Core.Models;
+
+namespace SpecRunner.Tests.Fakes;
+
+public class FakeGitHubService : IGitHubService
+{
+    public Task<int> CreatePullRequestAsync(string title, string body, string headBranch, string baseBranch, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
+
+    public Task<int> CreateDraftPullRequestAsync(string title, string body, string headBranch, string baseBranch, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
+
+    public Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<PrComment>>(Array.Empty<PrComment>());
+
+    public Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}

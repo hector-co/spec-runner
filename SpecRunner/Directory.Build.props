@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    TargetFramework must be resolvable before Directory.Build.targets is
+    imported (NuGet restore reads it from the early-imported Directory.Build.props,
+    not the late-imported Directory.Build.targets), so it lives here.
+    ImplicitUsings and Nullable stay in Directory.Build.targets.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>

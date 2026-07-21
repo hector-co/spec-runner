@@ -8,6 +8,34 @@ schema: spec-driven
 #     Tech stack: TypeScript, React, Node.js
 #     We use conventional commits
 #     Domain: e-commerce platform
+context: |
+  Solution name: SpecRunner, a .NET 10 console application, solution and source
+  live under a top-level /SpecRunner folder.
+
+  Purpose: runs against one local git clone of a GitHub repository at a time,
+  authenticating to GitHub via a personal access token (PAT), and drives
+  OpenSpec proposal/update/implement/archive workflows by watching issue and
+  PR comments.
+
+  Required capabilities:
+  - Git operations: create branch, switch branch, commit, push, pull.
+  - GitHub operations: create PR, create draft PR, read PR comments, write PR
+    comments, mark a PR ready for review.
+  - Configuration: the base branch name used for all PRs is configurable.
+  - Spec/change naming: derived from an issue as
+    "[issue number]-[issue name in lower case, spaces replaced with dashes]",
+    with characters invalid in a folder name stripped from the issue name.
+  - State: a simple local storage mechanism tracks associations between
+    issues, PRs, comments, and specs/changes, so future comments can be
+    resolved back to the right spec and updates appended to existing records.
+  - Task execution has a configurable timeout; if a triggered task run
+    exceeds it, processing stops and an error indicator is recorded on the
+    GitHub comment currently being processed.
+
+  This change defines only the project/solution structure and configuration
+  surface for SpecRunner (projects, folders, config model, state storage
+  shape, service boundaries). It does not implement the comment-driven
+  workflow behavior itself.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

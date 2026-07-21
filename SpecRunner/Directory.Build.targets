@@ -1,0 +1,16 @@
+<Project>
+
+  <!--
+    Common MSBuild properties for every project in the SpecRunner solution.
+    Imported after each project file, so these values win over anything an
+    individual .csproj sets, keeping the properties consistent across
+    projects instead of silently overridable per project. TargetFramework
+    is set in Directory.Build.props instead, since NuGet restore needs it
+    resolved before Directory.Build.targets is imported.
+  -->
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
