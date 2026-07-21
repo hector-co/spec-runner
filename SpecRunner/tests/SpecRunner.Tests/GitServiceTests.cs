@@ -63,6 +63,35 @@ public class GitServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task FetchAsyncRetrievesNamedBranchWithoutChangingCheckedOutBranch()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "feature/45");
+        File.WriteAllText(Path.Combine(_peerPath, "from-peer.txt"), "peer change");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "peer commit");
+        RunGit(_peerPath, "push", "origin", "feature/45");
+
+        await _gitService.FetchAsync("feature/45");
+
+        var remoteTip = RunGitCapture(_localPath, "rev-parse", "origin/feature/45").Trim();
+        Assert.NotEmpty(remoteTip);
+        Assert.Equal("main", RunGitCapture(_localPath, "rev-parse", "--abbrev-ref", "HEAD").Trim());
+    }
+
+    [Fact]
+    public async Task FetchAsyncOfUnknownBranchThrowsGitCommandException()
+    {
+        var exception = await Assert.ThrowsAsync<GitCommandException>(
+            () => _gitService.FetchAsync("does-not-exist"));
+
+        Assert.NotEmpty(exception.StandardError);
+        Assert.NotEqual(0, exception.ExitCode);
+    }
+
+    [Fact]
     public async Task ResetHardAsyncDiscardsUncommittedAndUntrackedChanges()
     {
         File.WriteAllText(Path.Combine(_localPath, "initial.txt"), "modified content");

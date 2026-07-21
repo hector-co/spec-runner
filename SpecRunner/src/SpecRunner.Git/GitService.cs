@@ -21,6 +21,9 @@ public class GitService : IGitService
         await RunGitAsync(cancellationToken, "merge", "--ff-only", $"origin/{_options.BaseBranchName}").ConfigureAwait(false);
     }
 
+    public Task FetchAsync(string branchName, CancellationToken cancellationToken = default)
+        => RunGitAsync(cancellationToken, "fetch", "origin", branchName);
+
     public async Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default)
     {
         await RunGitAsync(cancellationToken, "reset", "--hard", targetRef).ConfigureAwait(false);

@@ -24,6 +24,9 @@ public class FakeGitHubService : IGitHubService
     public Task<int> CreateDraftPullRequestAsync(string title, string body, string headBranch, string baseBranch, CancellationToken cancellationToken = default)
         => Task.FromResult(0);
 
+    public Task<IReadOnlyList<GitHubPullRequest>> ListOpenPullRequestsAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubPullRequest>>(Array.Empty<GitHubPullRequest>());
+
     public Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<PrComment>>(Array.Empty<PrComment>());
 

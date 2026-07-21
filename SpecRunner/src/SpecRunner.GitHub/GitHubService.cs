@@ -144,11 +144,68 @@ public class GitHubService : IGitHubService
         return document.RootElement.GetProperty("number").GetInt32();
     }
 
-    public Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<IReadOnlyList<GitHubPullRequest>> ListOpenPullRequestsAsync(CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
 
-    public Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&per_page=100", null, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var pullRequests = new List<GitHubPullRequest>();
+        foreach (var prElement in document.RootElement.EnumerateArray())
+        {
+            var number = prElement.GetProperty("number").GetInt32();
+            var title = prElement.TryGetProperty("title", out var titleElement) ? titleElement.GetString() ?? string.Empty : string.Empty;
+            var body = prElement.TryGetProperty("body", out var bodyElement) && bodyElement.ValueKind == JsonValueKind.String
+                ? bodyElement.GetString() ?? string.Empty
+                : string.Empty;
+            var headBranch = prElement.TryGetProperty("head", out var headElement) && headElement.TryGetProperty("ref", out var refElement)
+                ? refElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            pullRequests.Add(new GitHubPullRequest(number, title, body, headBranch));
+        }
+
+        return pullRequests;
+    }
+
+    public async Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/issues/{prNumber}/comments?per_page=100", null, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var comments = new List<PrComment>();
+        foreach (var commentElement in document.RootElement.EnumerateArray())
+        {
+            var commentId = commentElement.GetProperty("id").GetInt64();
+            var author = commentElement.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var loginElement)
+                ? loginElement.GetString() ?? string.Empty
+                : string.Empty;
+            var body = commentElement.TryGetProperty("body", out var bodyElement) && bodyElement.ValueKind == JsonValueKind.String
+                ? bodyElement.GetString() ?? string.Empty
+                : string.Empty;
+            var createdAt = commentElement.TryGetProperty("created_at", out var createdAtElement)
+                ? createdAtElement.GetDateTimeOffset()
+                : DateTimeOffset.UtcNow;
+
+            comments.Add(new PrComment(commentId, author, body, createdAt));
+        }
+
+        return comments;
+    }
+
+    public async Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            $"https://api.github.com/repos/{owner}/{repo}/issues/{prNumber}/comments",
+            new { body },
+            cancellationToken).ConfigureAwait(false);
+    }
 
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();

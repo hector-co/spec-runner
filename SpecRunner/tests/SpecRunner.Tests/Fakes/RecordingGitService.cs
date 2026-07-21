@@ -14,6 +14,12 @@ public class RecordingGitService : IGitService
         return Task.CompletedTask;
     }
 
+    public Task FetchAsync(string branchName, CancellationToken cancellationToken = default)
+    {
+        Calls.Add($"Fetch:{branchName}");
+        return Task.CompletedTask;
+    }
+
     public Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default)
     {
         Calls.Add($"ResetHard:{targetRef}");

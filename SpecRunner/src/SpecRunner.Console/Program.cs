@@ -33,6 +33,7 @@ builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
 builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
 builder.Services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
+builder.Services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
@@ -72,8 +73,9 @@ using var sigIntRegistration = PosixSignalRegistration.Create(PosixSignal.SIGINT
 using var sigTermRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, HandleShutdownSignal);
 
 var proposeWorkflowRunner = host.Services.GetRequiredService<IProposeWorkflowRunner>();
+var implementWorkflowRunner = host.Services.GetRequiredService<IImplementWorkflowRunner>();
 var options = host.Services.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
 
-await PollingLoop.RunAsync(proposeWorkflowRunner, options.PollingInterval, shutdownCts.Token, logger);
+await PollingLoop.RunAsync(proposeWorkflowRunner, implementWorkflowRunner, options.PollingInterval, shutdownCts.Token, logger);
 
 return 0;
