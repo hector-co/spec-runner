@@ -10,9 +10,9 @@ SpecRunner/
   Directory.Packages.props - central NuGet package version management
   src/
     SpecRunner.Core     - domain models and service abstractions (no project deps)
-    SpecRunner.Git      - git operations (placeholder implementation only)
-    SpecRunner.GitHub   - GitHub API operations (placeholder implementation only)
-    SpecRunner.State    - JSON-file-backed local state store
+    SpecRunner.Git      - git operations against the local clone (shells out to `git`)
+    SpecRunner.GitHub   - GitHub REST API operations
+    SpecRunner.State    - SQLite-backed local state store
     SpecRunner.Cli      - CLI-agent process execution (Claude Code CLI today)
     SpecRunner.Console  - entry point; composes the above via generic host + DI
   tests/
@@ -36,7 +36,7 @@ environment variables, and user secrets in Development) under the `SpecRunner` s
   `https://github.com/owner/repo` (a trailing `.git` is also accepted). Owner/repo are
   derived from this URL; SSH URLs and non-GitHub hosts are not supported.
 - `LocalRepositoryPath` - local clone path used to derive the default state file
-  location (`<LocalRepositoryPath>/.specrunner/state.json`).
+  location (`<LocalRepositoryPath>/.specrunner/state.db`).
 - `BaseBranchName` - base branch used for PRs (defaults to `main`).
 - `TaskTimeout` - per-task timeout, e.g. `"00:10:00"` for 10 minutes.
 
@@ -76,23 +76,51 @@ executable with `--print --verbose --input-format stream-json --output-format
 stream-json` so a single long-lived process exchanges newline-delimited JSON on
 stdin/stdout across multiple turns.
 
-This is a process-execution primitive only: it does not decide when to start a session,
-what prompt to send, enforce `TaskTimeout`, or post progress to GitHub - that belongs to
-a future change that wires this into the comment-driven workflow loop.
+This is a process-execution primitive only: it decides neither when to start a session
+nor what prompt to send - that's the `propose-workflow`'s job below.
+
+## Propose workflow
+
+On every run, after a successful repository connection test, `SpecRunner.Console` runs
+one scan pass (`IProposeWorkflowRunner.RunOnceAsync`, implemented by `ProposeWorkflowRunner`)
+over the configured repository's open issues:
+
+1. It lists open issues and their comments, and treats a comment as an eligible trigger
+   when its body, trimmed of leading/trailing whitespace, is exactly `/propose` or starts
+   with `/propose` followed by whitespace (so `/proposed` or `/propose` used mid-sentence
+   does not trigger).
+2. A comment already carrying an `eyes`, `rocket`, or `confused` reaction from the
+   authenticated bot identity is skipped, so re-running the console app never reprocesses
+   a comment that is already in-progress, done, or errored.
+3. Each remaining eligible comment is processed in turn (never concurrently, since all
+   comments share the one local clone). Processing starts by adding an `eyes` reaction,
+   then either:
+   - **Issue already has a PR** (per the state store): posts a reply pointing at the
+     existing PR and adds a `rocket` reaction - no branch or CLI-agent session is created.
+   - **Fresh proposal**: pulls and hard-resets the local clone to `BaseBranchName`,
+     creates/switches to `feature/{issue-number}`, resolves the spec name via
+     `ISpecNameResolver`, and runs the CLI coding agent with an
+     `/opsx-propose {spec-name}\n{issue-body}` prompt. On success it commits, pushes, and
+     opens a draft PR, then adds a `rocket` reaction and a reply with the new PR number.
+4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
+   (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
+   human-readable reply instead of a raw exception, and processing moves on to the next
+   eligible comment rather than aborting the scan pass.
+
+Every outcome is also recorded in the SQLite state store (issue number, resolved spec
+name, PR number if any, and the triggering comment's status), which is what the
+already-has-a-PR check consults on future runs. This change only handles the `/propose`
+trigger; `/update`, `/implement`, `/archive`, and PR-level comments are out of scope.
 
 ## Status
 
-Git and GitHub operations are not implemented yet beyond the connection check:
-`SpecRunner.Git` and `SpecRunner.GitHub`'s `IGitService`/`IGitHubService` register
-placeholder services that throw `NotImplementedException`. The local JSON state store
-is fully implemented.
-
-On every run, `SpecRunner.Console` starts the host and tests whether the configured
-`RepositoryUrl` + `GitHubToken` can reach the target repository via the GitHub REST API
+`SpecRunner.Console` starts the host and tests whether the configured `RepositoryUrl` +
+`GitHubToken` can reach the target repository via the GitHub REST API
 (`IRepositoryConnectionTester`). It logs and prints the resulting status (`NotConfigured`,
 `InvalidRepositoryUrl`, `Connected`, `AuthenticationFailed`, `RepositoryNotFound`, or
-`NetworkError`) and a message, then exits with code `0` when the status is `Connected`
-and `1` for any other status. `GitHubToken` is never included in printed or logged output.
+`NetworkError`) and a message. If the status is `Connected`, it runs one `propose-workflow`
+scan pass (see above) and exits `0`; any other connection status exits `1` without running
+the scan. `GitHubToken` is never included in printed or logged output.
 
 ## Logging
 

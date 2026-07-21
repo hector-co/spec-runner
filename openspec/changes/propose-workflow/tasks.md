@@ -107,44 +107,44 @@
 
 ## 5. Tests
 
-- [ ] 5.1 Add unit tests for `IGitService` operations (pull, reset-hard,
+- [x] 5.1 Add unit tests for `IGitService` operations (pull, reset-hard,
       create/switch branch, commit, push) against a throwaway local git
       repository fixture, covering both success and a failing-command
       case.
-- [ ] 5.2 Add unit tests for the new `IGitHubService` operations
+- [x] 5.2 Add unit tests for the new `IGitHubService` operations
       (identity resolution/caching, issue+comment listing, reaction
       list/add, issue comment creation, draft PR creation) against a
       fake/mocked HTTP handler, covering success and failure responses.
-- [ ] 5.3 Add unit tests for comment-eligibility matching (exact match,
+- [x] 5.3 Add unit tests for comment-eligibility matching (exact match,
       trailing text, mid-sentence/`/proposed` non-match).
-- [ ] 5.4 Add unit tests for the already-reacted skip logic (bot
+- [x] 5.4 Add unit tests for the already-reacted skip logic (bot
       reaction vs. human reaction vs. no reaction).
-- [ ] 5.5 Add unit tests for the already-has-PR short-circuit path.
-- [ ] 5.6 Add unit tests for the success path (branch reset/create, CLI
+- [x] 5.5 Add unit tests for the already-has-PR short-circuit path.
+- [x] 5.6 Add unit tests for the success path (branch reset/create, CLI
       agent invocation with the expected prompt, commit/push/draft-PR
       calls, reaction + reply + state-store update).
-- [ ] 5.7 Add unit tests for the error path (thrown exception mid-cycle)
+- [x] 5.7 Add unit tests for the error path (thrown exception mid-cycle)
       and the timeout path (session `StopAsync` called, `confused`
       reaction posted), including that processing continues to the next
       comment.
-- [ ] 5.8 Add a unit test confirming two eligible comments in one scan
+- [x] 5.8 Add a unit test confirming two eligible comments in one scan
       pass are processed sequentially, not concurrently.
-- [ ] 5.9 Add/update the DI smoke test to confirm `IProposeWorkflowRunner`
+- [x] 5.9 Add/update the DI smoke test to confirm `IProposeWorkflowRunner`
       resolves from the container.
-- [ ] 5.10 Verify `dotnet test SpecRunner/SpecRunner.sln` passes.
+- [x] 5.10 Verify `dotnet test SpecRunner/SpecRunner.sln` passes.
 
 ## 6. Documentation
 
-- [ ] 6.1 Update `SpecRunner/README.md` to describe the `/propose`
+- [x] 6.1 Update `SpecRunner/README.md` to describe the `/propose`
       comment workflow: trigger syntax, the reaction status protocol
       (`eyes`/`rocket`/`confused`), and the single-scan-per-invocation
       model.
 
 ## 7. Verification
 
-- [ ] 7.1 Run `dotnet build SpecRunner/SpecRunner.sln` and confirm it
+- [x] 7.1 Run `dotnet build SpecRunner/SpecRunner.sln` and confirm it
       succeeds with no errors.
-- [ ] 7.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
+- [x] 7.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
       tests pass.
 - [ ] 7.3 If a test GitHub repository and PAT are available, manually
       post a `/propose` comment on an open issue, run

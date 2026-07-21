@@ -24,7 +24,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SpecRunner.Cli\SpecRunner.Cli.csproj" />
+    <ProjectReference Include="..\..\src\SpecRunner.Console\SpecRunner.Console.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.Core\SpecRunner.Core.csproj" />
+    <ProjectReference Include="..\..\src\SpecRunner.Git\SpecRunner.Git.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.GitHub\SpecRunner.GitHub.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.State\SpecRunner.State.csproj" />
   </ItemGroup>

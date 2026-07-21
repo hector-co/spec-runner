@@ -1,5 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SpecRunner.Cli;
+using SpecRunner.Console;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
@@ -23,6 +26,8 @@ public class DependencyInjectionSmokeTests
         services.AddOptions<CliAgentOptions>();
         services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
         services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
+        services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
         using var provider = services.BuildServiceProvider();
 
@@ -32,5 +37,6 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<IGitHubService>());
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());
         Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
+        Assert.NotNull(provider.GetRequiredService<IProposeWorkflowRunner>());
     }
 }
