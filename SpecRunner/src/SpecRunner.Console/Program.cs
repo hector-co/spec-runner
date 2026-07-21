@@ -1,14 +1,20 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Serilog;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
+using SpecRunner.Core.Models;
 using SpecRunner.Git;
 using SpecRunner.GitHub;
 using SpecRunner.State;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddSerilog(loggerConfiguration => loggerConfiguration
+    .ReadFrom.Configuration(builder.Configuration));
 
 builder.Services
     .AddOptions<SpecRunnerOptions>()
@@ -17,6 +23,7 @@ builder.Services
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
 builder.Services.AddSingleton<IGitService, NotImplementedGitService>();
 builder.Services.AddSingleton<IGitHubService, NotImplementedGitHubService>();
+builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
@@ -26,11 +33,17 @@ builder.Services.AddSingleton<IStateStore>(sp =>
 
 using var host = builder.Build();
 
-// Resolve registered services to confirm the DI container is wired correctly.
-host.Services.GetRequiredService<IOptions<SpecRunnerOptions>>();
-host.Services.GetRequiredService<ISpecNameResolver>();
-host.Services.GetRequiredService<IStateStore>();
-host.Services.GetRequiredService<IGitService>();
-host.Services.GetRequiredService<IGitHubService>();
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-return 0;
+logger.LogInformation("SpecRunner host started");
+
+var connectionTester = host.Services.GetRequiredService<IRepositoryConnectionTester>();
+var connectionResult = await connectionTester.TestConnectionAsync();
+
+logger.LogInformation(
+    "Repository connection test result: {Status} - {Message}",
+    connectionResult.Status,
+    connectionResult.Message);
+Console.WriteLine($"Repository connection: {connectionResult.Status} - {connectionResult.Message}");
+
+return connectionResult.Status == RepositoryConnectionStatus.Connected ? 0 : 1;
