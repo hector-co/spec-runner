@@ -92,7 +92,7 @@
       succeeds with no errors.
 - [x] 8.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
       tests pass.
-- [ ] 8.3 If a test GitHub repository and PAT are available, run
+- [x] 8.3 If a test GitHub repository and PAT are available, run
       `SpecRunner.Console`, confirm it keeps running and logs repeated
       scan passes roughly `PollingInterval` apart, post a `/propose`
       comment during a run and confirm it's picked up without restarting
