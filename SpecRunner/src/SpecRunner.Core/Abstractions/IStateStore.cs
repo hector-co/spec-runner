@@ -4,11 +4,13 @@ namespace SpecRunner.Core.Abstractions;
 
 public interface IStateStore
 {
-    Task<SpecRunnerState> LoadAsync(CancellationToken cancellationToken = default);
-
-    Task SaveAsync(SpecRunnerState state, CancellationToken cancellationToken = default);
-
     Task<TrackedIssue?> FindByIssueNumberAsync(int issueNumber, CancellationToken cancellationToken = default);
 
     Task<TrackedIssue?> FindByPrNumberAsync(int prNumber, CancellationToken cancellationToken = default);
+
+    Task<TrackedIssue?> FindByCommentIdAsync(long commentId, CancellationToken cancellationToken = default);
+
+    Task<TrackedIssue> UpsertTrackedIssueAsync(TrackedIssue issue, CancellationToken cancellationToken = default);
+
+    Task<TrackedComment> UpsertCommentAsync(int issueNumber, TrackedComment comment, CancellationToken cancellationToken = default);
 }

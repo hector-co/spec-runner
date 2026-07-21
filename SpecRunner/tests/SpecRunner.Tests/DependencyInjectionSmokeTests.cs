@@ -17,7 +17,7 @@ public class DependencyInjectionSmokeTests
         services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
         services.AddSingleton<IGitService, FakeGitService>();
         services.AddSingleton<IGitHubService, FakeGitHubService>();
-        services.AddSingleton<IStateStore>(_ => new JsonFileStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.json")));
+        services.AddSingleton<IStateStore>(_ => new SqliteStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.db")));
         services.AddOptions<SpecRunnerOptions>();
         services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
 
