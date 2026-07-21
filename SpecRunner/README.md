@@ -5,6 +5,9 @@
 ```
 SpecRunner/
   SpecRunner.sln
+  Directory.Build.props    - sets TargetFramework (net10.0) for every project
+  Directory.Build.targets  - sets ImplicitUsings/Nullable for every project
+  Directory.Packages.props - central NuGet package version management
   src/
     SpecRunner.Core     - domain models and service abstractions (no project deps)
     SpecRunner.Git      - git operations (placeholder implementation only)

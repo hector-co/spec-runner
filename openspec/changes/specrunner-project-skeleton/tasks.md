@@ -89,3 +89,24 @@
 - [x] 7.1 Add a short `SpecRunner/README.md` describing the project
       layout, how to configure `SpecRunnerOptions` locally, and that
       git/GitHub operations are not yet implemented in this change.
+
+## 8. Centralized build configuration
+
+- [x] 8.1 Add `SpecRunner/Directory.Build.targets` setting `ImplicitUsings`
+      (`enable`) and `Nullable` (`enable`) for every project in the
+      solution. `TargetFramework` (`net10.0`) is set in a companion
+      `SpecRunner/Directory.Build.props` instead, since NuGet restore
+      needs it resolved earlier than `Directory.Build.targets` imports.
+- [x] 8.2 Add `SpecRunner/Directory.Packages.props` with
+      `ManagePackageVersionsCentrally` set to `true` and a `PackageVersion`
+      entry for every NuGet package referenced anywhere in the solution
+      (`Microsoft.Extensions.Hosting`, `Microsoft.Extensions.DependencyInjection`,
+      `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio`,
+      `coverlet.collector`).
+- [x] 8.3 Remove `TargetFramework`, `ImplicitUsings`, and `Nullable` from
+      every individual `.csproj`, and remove the `Version` attribute from
+      every `PackageReference`, leaving only project-specific properties
+      (e.g. `OutputType`, `UserSecretsId`) and item references.
+- [x] 8.4 Verify `dotnet build SpecRunner/SpecRunner.sln` and
+      `dotnet test SpecRunner/SpecRunner.sln` still succeed after
+      centralizing configuration.

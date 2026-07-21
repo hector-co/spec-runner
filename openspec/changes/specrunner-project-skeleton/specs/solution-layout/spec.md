@@ -51,3 +51,35 @@ containing at least one passing smoke test per referenced project.
 - **WHEN** `dotnet test SpecRunner/SpecRunner.sln` is run
 - **THEN** the `SpecRunner.Tests` project SHALL execute and all tests
   SHALL pass
+
+### Requirement: Centralized build configuration
+The solution SHALL centralize MSBuild properties and NuGet package versions
+across all projects using top-level `SpecRunner/Directory.Build.props`,
+`SpecRunner/Directory.Build.targets`, and `SpecRunner/Directory.Packages.props`
+files, instead of repeating `TargetFramework`, `ImplicitUsings`, `Nullable`,
+and package version numbers in each project file.
+
+#### Scenario: Common MSBuild properties are set once
+- **WHEN** any project under `SpecRunner/src` or `SpecRunner/tests` is
+  inspected
+- **THEN** its `.csproj` file SHALL NOT redeclare `TargetFramework`,
+  `ImplicitUsings`, or `Nullable`; `TargetFramework` SHALL be set once in
+  `SpecRunner/Directory.Build.props` (required there so NuGet restore can
+  resolve it before `Directory.Build.targets` is imported), and
+  `ImplicitUsings`/`Nullable` SHALL be set once in
+  `SpecRunner/Directory.Build.targets`, applying to every project in the
+  solution
+
+#### Scenario: Central package management controls NuGet versions
+- **WHEN** any project under `SpecRunner/src` or `SpecRunner/tests`
+  declares a `PackageReference`
+- **THEN** the reference SHALL omit a `Version` attribute, and the version
+  SHALL instead be resolved from a matching `PackageVersion` entry in
+  `SpecRunner/Directory.Packages.props` with
+  `ManagePackageVersionsCentrally` enabled
+
+#### Scenario: Solution still builds and tests after centralization
+- **WHEN** `dotnet build SpecRunner/SpecRunner.sln` and
+  `dotnet test SpecRunner/SpecRunner.sln` are run
+- **THEN** both SHALL succeed with no errors, using the centrally defined
+  properties and package versions

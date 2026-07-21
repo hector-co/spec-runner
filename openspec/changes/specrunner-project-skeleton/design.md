@@ -116,6 +116,33 @@ out of scope here and will be a future change.
   `SpecRunner.Core` model types), deferring the SDK choice to the change
   that implements `SpecRunner.GitHub`.
 
+- **Centralized build configuration**: `SpecRunner/Directory.Build.targets`
+  sets `ImplicitUsings` and `Nullable` once for every project under
+  `SpecRunner/src` and `SpecRunner/tests`. `TargetFramework` is set in a
+  separate `SpecRunner/Directory.Build.props` instead of `.targets`,
+  because NuGet's restore pass resolves `TargetFramework` from
+  `Directory.Build.props` (imported before `Sdk.props`) and does not see
+  `Directory.Build.targets` (imported after the project body) — putting
+  `TargetFramework` only in `.targets` made `dotnet build`/`dotnet restore`
+  fail with "Invalid framework identifier ''" before any project-level
+  property could apply. `SpecRunner/Directory.Packages.props` turns on
+  `ManagePackageVersionsCentrally` and lists a `PackageVersion` for every
+  NuGet package referenced anywhere in the solution
+  (`Microsoft.Extensions.Hosting`, `Microsoft.Extensions.DependencyInjection`,
+  `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio`,
+  `coverlet.collector`). Individual `.csproj` files keep only
+  project-specific properties (e.g. `OutputType`, `UserSecretsId`) and
+  `PackageReference`/`ProjectReference` items without a `Version`
+  attribute. This removes the drift risk of the same package resolving to
+  different versions in different projects and matches the standard MSBuild
+  convention (`Directory.Build.props`/`.targets` auto-import into every
+  project under the directory tree). `Directory.Build.targets` was used
+  (import-after-project, so its property values win over anything a
+  project sets) rather than `Directory.Build.props` (import-before-project,
+  where a project's own values would silently win instead), so the shared
+  `TargetFramework`/`ImplicitUsings`/`Nullable` values are enforced
+  consistently rather than quietly overridable per project.
+
 ## Risks / Trade-offs
 
 - [Defining `IGitService`/`IGitHubService` now, before any real

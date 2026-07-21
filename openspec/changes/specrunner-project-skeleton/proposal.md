@@ -34,13 +34,22 @@ structure ad hoc.
 - Establish the spec/change naming convention as a pure utility contract:
   `[issue number]-[issue name, lower-cased, spaces replaced with dashes,
   invalid folder-name characters stripped]`.
+- Add `SpecRunner/Directory.Build.props`, `SpecRunner/Directory.Build.targets`,
+  and `SpecRunner/Directory.Packages.props` so common MSBuild properties
+  (`TargetFramework`, `ImplicitUsings`, `Nullable`) and NuGet package
+  versions are centralized once instead of repeated per project.
+  `TargetFramework` lives in `Directory.Build.props` (NuGet restore needs
+  it resolved before `Directory.Build.targets` is imported); the rest of
+  the shared configuration lives in `Directory.Build.targets` as
+  originally requested.
 
 ## Capabilities
 
 ### New Capabilities
 - `solution-layout`: The SpecRunner .NET 10 solution and project structure
-  (console app, core, GitHub, git, state, tests) and how responsibilities
-  are divided between projects.
+  (console app, core, GitHub, git, state, tests), how responsibilities are
+  divided between projects, and how shared MSBuild properties and NuGet
+  package versions are centralized across those projects.
 - `app-configuration`: The configuration model and its required settings
   (GitHub PAT, target repository, base branch name, task timeout), and how
   the console app loads it.
