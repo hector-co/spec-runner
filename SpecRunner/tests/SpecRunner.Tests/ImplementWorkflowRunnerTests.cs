@@ -97,7 +97,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("/opsx-apply 45-add-login-page add validation for the email field", session.LastPrompt);
+        Assert.Equal("\"/opsx-apply 45-add-login-page add validation for the email field\"", session.LastPrompt);
     }
 
     [Fact]
@@ -157,11 +157,11 @@ public class ImplementWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         Assert.Equal(
-            new[] { "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:implementing #45", "Push:feature/45" },
+            new[] { "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:applying specs for #45", "Push:feature/45" },
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("/opsx-apply 45-add-login-page add validation", session.LastPrompt);
+        Assert.Equal("\"/opsx-apply 45-add-login-page add validation\"", session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 
         Assert.Contains((9001L, "+1"), gitHub.AddedReactions);

@@ -112,7 +112,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
 
             session = _cliAgentSessionFactory.CreateSession();
-            await session.StartAsync($"/opsx-apply {trackedIssue.SpecName} {comment.Instructions}", timeoutCts.Token).ConfigureAwait(false);
+            await session.StartAsync($"\"/opsx-apply {trackedIssue.SpecName} {comment.Instructions}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
 
             await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
@@ -125,7 +125,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
                 throw new InvalidOperationException($"CLI agent session for PR #{comment.PrNumber} ended in state {session.State}.");
             }
 
-            await _git.CommitAsync($"implementing #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
+            await _git.CommitAsync($"applying specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
             await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);

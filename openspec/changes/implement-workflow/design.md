@@ -123,11 +123,18 @@ number is the same number both APIs use — so `/implement` can reuse
   `/implement` needs. Since the project is pre-release, removing dead code
   is preferred over keeping an unused model "just in case."
 
-- **Commit message is `"implementing #{issue-number}"`,
+- **Commit message is `"applying specs for #{issue-number}"`,
   keyed off the issue number (not the PR number) recorded in the resolved
   `TrackedIssue`**, for consistency with `/propose`'s existing
   `"adding specs for #{issue-number}"` convention — both commands' commit
   history reads against the same canonical identifier.
+
+- **The CLI-agent prompt is sent as a single value wrapped in escaped
+  double quotes (`\"...\"`), matching `propose-workflow`'s existing
+  `/opsx-propose` prompt-quoting convention.** Both commands hand the CLI
+  coding agent's session a quoted initial-turn string rather than an
+  unquoted one, for consistency between the two commands' invocation
+  style.
 
 ## Risks / Trade-offs
 

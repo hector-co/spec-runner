@@ -143,7 +143,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("/opsx-propose 45-add-login-page\nWe need a login page.", session.LastPrompt);
+        Assert.Equal("\"/opsx-propose 45-add-login-page\nWe need a login page.\"", session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 
         var pr = Assert.Single(gitHub.CreatedDraftPrs);

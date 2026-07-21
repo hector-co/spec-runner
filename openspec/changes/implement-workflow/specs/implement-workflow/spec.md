@@ -85,10 +85,12 @@ change is made.
 ### Requirement: The CLI coding agent is run with an `/opsx-apply` prompt built from the resolved spec and comment instructions
 After refreshing the branch, the workflow SHALL start a new CLI agent
 session via `ICliAgentSessionFactory` and send it an initial prompt of
-`"/opsx-apply {spec-name} {instructions}"`, where `spec-name` is the
+`/opsx-apply {spec-name} {instructions}`, where `spec-name` is the
 tracked record's spec/change name and `instructions` is the triggering
 comment's trimmed body with the leading `/implement` token and its
-separating whitespace removed, then await the session reaching a terminal
+separating whitespace removed, sent as a single value wrapped in escaped
+double quotes (`\"...\"`), matching `propose-workflow`'s existing
+prompt-quoting convention, then await the session reaching a terminal
 state (`Completed` or `Failed`).
 
 #### Scenario: Prompt combines the resolved spec name and stripped comment body
@@ -97,21 +99,22 @@ state (`Completed` or `Failed`).
   `"/implement add validation for the email field"`
 - **THEN** the session SHALL be started with initial prompt
   `"/opsx-apply 45-add-login-page add validation for the email field"`
+  (the entire prompt wrapped in a literal pair of double quotes)
 
 ### Requirement: A completed CLI-agent run is committed and pushed to the PR's existing branch
 When the CLI agent session reaches state `Completed`, the workflow SHALL
 commit all resulting changes via `IGitService.CommitAsync` with message
-`"implementing #{issue-number}"` (using the issue number from the tracked
-record) and push the branch via `IGitService.PushAsync`. The workflow
-SHALL NOT create a new branch or a new pull request, since the PR already
-exists.
+`"applying specs for #{issue-number}"` (using the issue number from the
+tracked record) and push the branch via `IGitService.PushAsync`. The
+workflow SHALL NOT create a new branch or a new pull request, since the
+PR already exists.
 
 #### Scenario: Successful session results in a push to the existing branch
 - **WHEN** the CLI agent session for a tracked PR with issue number `45`
   on branch `"feature/45"` reaches state `Completed`
 - **THEN** the changes SHALL be committed with message
-  `"implementing #45"` and the `"feature/45"` branch SHALL be pushed to
-  `origin`, with no new branch or pull request created
+  `"applying specs for #45"` and the `"feature/45"` branch SHALL be pushed
+  to `origin`, with no new branch or pull request created
 
 ### Requirement: A successful run reports back on the comment and in the state store
 After pushing, the workflow SHALL add a `+1` reaction to the triggering

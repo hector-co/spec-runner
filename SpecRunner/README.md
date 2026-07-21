@@ -153,12 +153,13 @@ over the configured repository's open pull requests, driving further work on a P
      happens for this comment.
    - **Tracked PR**: fetches, switches to, and hard-resets the PR's existing head branch
      to `origin/{branch}` (never `BaseBranchName` - the branch already exists), then runs
-     the CLI coding agent with an `/opsx-apply {spec-name} {instructions}` prompt using the
-     tracked record's spec name. On success it commits with message
-     `"implementing #{issue-number}"` (the issue number from the tracked record) and
-     pushes the existing branch - no new branch or PR is created - then adds a `+1`
-     reaction (the closest available GitHub reaction to a checkmark) and a reply
-     confirming the push.
+     the CLI coding agent with an `/opsx-apply {spec-name} {instructions}` prompt (sent as
+     a single value wrapped in escaped double quotes, matching `propose-workflow`'s
+     `/opsx-propose` prompt-quoting convention) using the tracked record's spec name. On
+     success it commits with message `"applying specs for #{issue-number}"` (the issue
+     number from the tracked record) and pushes the existing branch - no new branch or PR
+     is created - then adds a `+1` reaction (the closest available GitHub reaction to a
+     checkmark) and a reply confirming the push.
 4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
    (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
    human-readable reply instead of a raw exception, and processing moves on to the next

@@ -64,11 +64,13 @@
       `origin/{branch}`.
 - [x] 4.6 Build the instructions string (comment body with the leading
       `/implement` token and its separating whitespace removed) and start
-      a CLI agent session with initial prompt `"/opsx-apply {spec-name}
-      {instructions}"` using the tracked record's spec name; await a
-      terminal session state.
+      a CLI agent session with initial prompt `/opsx-apply {spec-name}
+      {instructions}` using the tracked record's spec name, sent as a
+      single value wrapped in escaped double quotes (`\"...\"`) matching
+      `propose-workflow`'s prompt-quoting convention; await a terminal
+      session state.
 - [x] 4.7 On `Completed`: `CommitAsync` with message
-      `"implementing #{issue-number}"`, `PushAsync` the PR's branch, then
+      `"applying specs for #{issue-number}"`, `PushAsync` the PR's branch, then
       add the `+1` reaction and post a reply confirming the push; upsert
       the state store (comment status `done` under the tracked issue
       number).
