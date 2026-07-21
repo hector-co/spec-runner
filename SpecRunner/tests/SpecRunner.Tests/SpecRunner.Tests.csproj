@@ -6,10 +6,13 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -20,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\SpecRunner.Cli\SpecRunner.Cli.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.Core\SpecRunner.Core.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.GitHub\SpecRunner.GitHub.csproj" />
     <ProjectReference Include="..\..\src\SpecRunner.State\SpecRunner.State.csproj" />

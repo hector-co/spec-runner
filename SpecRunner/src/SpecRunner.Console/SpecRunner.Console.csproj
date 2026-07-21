@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\SpecRunner.Cli\SpecRunner.Cli.csproj" />
     <ProjectReference Include="..\SpecRunner.Core\SpecRunner.Core.csproj" />
     <ProjectReference Include="..\SpecRunner.Git\SpecRunner.Git.csproj" />
     <ProjectReference Include="..\SpecRunner.GitHub\SpecRunner.GitHub.csproj" />

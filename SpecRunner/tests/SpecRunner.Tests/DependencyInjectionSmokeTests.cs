@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using SpecRunner.Cli;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
@@ -19,7 +20,9 @@ public class DependencyInjectionSmokeTests
         services.AddSingleton<IGitHubService, FakeGitHubService>();
         services.AddSingleton<IStateStore>(_ => new SqliteStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.db")));
         services.AddOptions<SpecRunnerOptions>();
+        services.AddOptions<CliAgentOptions>();
         services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
+        services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
 
         using var provider = services.BuildServiceProvider();
 
@@ -28,5 +31,6 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<IGitService>());
         Assert.NotNull(provider.GetRequiredService<IGitHubService>());
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());
+        Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
     }
 }

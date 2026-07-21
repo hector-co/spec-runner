@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using SpecRunner.Cli;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
@@ -20,9 +21,14 @@ builder.Services
     .AddOptions<SpecRunnerOptions>()
     .Bind(builder.Configuration.GetSection(SpecRunnerOptions.SectionName));
 
+builder.Services
+    .AddOptions<CliAgentOptions>()
+    .Bind(builder.Configuration.GetSection(CliAgentOptions.SectionName));
+
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
 builder.Services.AddSingleton<IGitService, NotImplementedGitService>();
 builder.Services.AddSingleton<IGitHubService, NotImplementedGitHubService>();
+builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
 builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
