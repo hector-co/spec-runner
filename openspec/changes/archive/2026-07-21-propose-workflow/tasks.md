@@ -146,7 +146,7 @@
       succeeds with no errors.
 - [x] 7.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
       tests pass.
-- [ ] 7.3 If a test GitHub repository and PAT are available, manually
+- [x] 7.3 If a test GitHub repository and PAT are available, manually
       post a `/propose` comment on an open issue, run
       `SpecRunner.Console`, and confirm: the `eyes` reaction appears
       immediately, a `feature/{issue}` branch and draft PR are created on
