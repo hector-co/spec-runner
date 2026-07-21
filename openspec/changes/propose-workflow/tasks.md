@@ -1,105 +1,105 @@
 ## 1. `IGitService` real implementation (`SpecRunner.Git`)
 
-- [ ] 1.1 Extend `IGitService` in `SpecRunner.Core/Abstractions` with
+- [x] 1.1 Extend `IGitService` in `SpecRunner.Core/Abstractions` with
       `ResetHardAsync(string targetRef, CancellationToken)`, alongside
       the existing `PullAsync`, `CreateBranchAsync`, `SwitchBranchAsync`,
       `CommitAsync`, `PushAsync` signatures.
-- [ ] 1.2 Implement `PullAsync`: fetch and fast-forward
+- [x] 1.2 Implement `PullAsync`: fetch and fast-forward
       `SpecRunnerOptions.BaseBranchName` from `origin` in the clone at
       `SpecRunnerOptions.LocalRepositoryPath`.
-- [ ] 1.3 Implement `ResetHardAsync`: `git reset --hard {targetRef}` plus
+- [x] 1.3 Implement `ResetHardAsync`: `git reset --hard {targetRef}` plus
       `git clean -fd` to remove untracked files, in the local clone.
-- [ ] 1.4 Implement `CreateBranchAsync`/`SwitchBranchAsync` against the
+- [x] 1.4 Implement `CreateBranchAsync`/`SwitchBranchAsync` against the
       local clone.
-- [ ] 1.5 Implement `CommitAsync`: stage all pending changes and commit
+- [x] 1.5 Implement `CommitAsync`: stage all pending changes and commit
       with the supplied message.
-- [ ] 1.6 Implement `PushAsync`: push the current branch to `origin`,
+- [x] 1.6 Implement `PushAsync`: push the current branch to `origin`,
       setting upstream tracking if not already set.
-- [ ] 1.7 Wrap each git command invocation so a non-zero exit surfaces as
+- [x] 1.7 Wrap each git command invocation so a non-zero exit surfaces as
       a typed result/exception carrying captured stderr, rather than an
       unhandled process exception.
-- [ ] 1.8 Remove the placeholder `NotImplementedException` `IGitService`
+- [x] 1.8 Remove the placeholder `NotImplementedException` `IGitService`
       implementation.
 
 ## 2. `IGitHubService` extensions and real implementation (`SpecRunner.GitHub`)
 
-- [ ] 2.1 Extend `IGitHubService` in `SpecRunner.Core/Abstractions` with:
+- [x] 2.1 Extend `IGitHubService` in `SpecRunner.Core/Abstractions` with:
       resolving the authenticated login, listing open issues with
       comments, listing reactions on an issue comment, adding a reaction
       to an issue comment, creating an issue comment, alongside the
       existing `CreateDraftPullRequestAsync` (and the still-unimplemented
       `CreatePullRequestAsync`/PR-comment/mark-ready-for-review members).
-- [ ] 2.2 Implement authenticated-login resolution (`GET /user`) with
+- [x] 2.2 Implement authenticated-login resolution (`GET /user`) with
       in-process caching for the lifetime of one run.
-- [ ] 2.3 Implement listing open issues with comments (`GET
+- [x] 2.3 Implement listing open issues with comments (`GET
       /repos/{owner}/{repo}/issues` filtered to open, plus each issue's
       comments).
-- [ ] 2.4 Implement listing and adding reactions on an issue comment
+- [x] 2.4 Implement listing and adding reactions on an issue comment
       (`GET`/`POST
       /repos/{owner}/{repo}/issues/comments/{id}/reactions`).
-- [ ] 2.5 Implement creating an issue comment (`POST
+- [x] 2.5 Implement creating an issue comment (`POST
       /repos/{owner}/{repo}/issues/{number}/comments`).
-- [ ] 2.6 Implement `CreateDraftPullRequestAsync` for real (`POST
+- [x] 2.6 Implement `CreateDraftPullRequestAsync` for real (`POST
       /repos/{owner}/{repo}/pulls` with `draft: true`, head branch, and
       `SpecRunnerOptions.BaseBranchName` as base), returning the created
       PR number.
-- [ ] 2.7 Wrap each new GitHub REST API call so a non-2xx response or
+- [x] 2.7 Wrap each new GitHub REST API call so a non-2xx response or
       transport failure surfaces as a typed result/exception, rather than
       an unhandled `HttpRequestException`.
-- [ ] 2.8 Leave `CreatePullRequestAsync`, PR-comment read/write, and
+- [x] 2.8 Leave `CreatePullRequestAsync`, PR-comment read/write, and
       mark-ready-for-review as `NotImplementedException` placeholders
       (unchanged from the current implementation).
 
 ## 3. Propose-workflow core abstractions (`SpecRunner.Core`)
 
-- [ ] 3.1 Add `IProposeWorkflowRunner` to `SpecRunner.Core/Abstractions`
+- [x] 3.1 Add `IProposeWorkflowRunner` to `SpecRunner.Core/Abstractions`
       with a single `Task RunOnceAsync(CancellationToken)` member.
-- [ ] 3.2 Add any supporting model(s) needed to represent an eligible
+- [x] 3.2 Add any supporting model(s) needed to represent an eligible
       comment/issue pair as it flows through the workflow (e.g. issue
       number, issue title/body, comment id).
 
 ## 4. Propose-workflow orchestration (`SpecRunner.Console`)
 
-- [ ] 4.1 Add a `ProposeWorkflowRunner` implementing
+- [x] 4.1 Add a `ProposeWorkflowRunner` implementing
       `IProposeWorkflowRunner` in `SpecRunner.Console`, composing
       `IGitHubService`, `IGitService`, `IStateStore`,
       `ICliAgentSessionFactory`, `ISpecNameResolver`, and
       `IOptions<SpecRunnerOptions>`.
-- [ ] 4.2 Implement the eligible-comment scan: list open issues with
+- [x] 4.2 Implement the eligible-comment scan: list open issues with
       comments, filter to comments whose trimmed body is exactly
       `/propose` or starts with `/propose` followed by whitespace, and
       exclude comments already carrying an `eyes`/`rocket`/`confused`
       reaction from the authenticated bot login.
-- [ ] 4.3 Implement sequential per-comment processing: for each eligible
+- [x] 4.3 Implement sequential per-comment processing: for each eligible
       comment, add the `eyes` reaction first, then branch into the
       already-has-PR path or the fresh-proposal path.
-- [ ] 4.4 Implement the already-has-PR path: look up
+- [x] 4.4 Implement the already-has-PR path: look up
       `IStateStore.FindByIssueNumberAsync`; if a PR number is present,
       post the `"This issue already has an active Draft PR: #{pr}.
       Please add /update to the PR instead."` reply and add the `rocket`
       reaction.
-- [ ] 4.5 Implement the fresh-proposal path: `PullAsync` base branch,
+- [x] 4.5 Implement the fresh-proposal path: `PullAsync` base branch,
       `ResetHardAsync` to it, `CreateBranchAsync`/`SwitchBranchAsync` to
       `feature/{issue-number}`.
-- [ ] 4.6 Resolve the spec name via `ISpecNameResolver` and start a CLI
+- [x] 4.6 Resolve the spec name via `ISpecNameResolver` and start a CLI
       agent session with initial prompt `"/opsx-propose {spec-name}\n
       {issue-body}"`; await a terminal session state.
-- [ ] 4.7 On `Completed`: `CommitAsync` with message `"adding specs for
+- [x] 4.7 On `Completed`: `CommitAsync` with message `"adding specs for
       #{issue-number}"`, `PushAsync`, `CreateDraftPullRequestAsync`, then
       add the `rocket` reaction and post `"Created Draft PR #{pr} for
       this issue."`; upsert the state store (issue number, spec name, PR
       number, comment status `done`).
-- [ ] 4.8 Wrap the per-comment cycle (branch setup through PR creation)
+- [x] 4.8 Wrap the per-comment cycle (branch setup through PR creation)
       with `SpecRunnerOptions.TaskTimeout`; on timeout, call
       `StopAsync` on any in-flight CLI agent session.
-- [ ] 4.9 On any thrown exception or timeout: add the `confused`
+- [x] 4.9 On any thrown exception or timeout: add the `confused`
       reaction, post a short human-readable error summary (not a raw
       exception dump), upsert the state store with comment status
       `error`, and continue to the next eligible comment rather than
       aborting the scan pass.
-- [ ] 4.10 Register `IProposeWorkflowRunner` in `SpecRunner.Console`'s DI
+- [x] 4.10 Register `IProposeWorkflowRunner` in `SpecRunner.Console`'s DI
       container.
-- [ ] 4.11 Update the console entry point (`Program.cs`) to call
+- [x] 4.11 Update the console entry point (`Program.cs`) to call
       `IProposeWorkflowRunner.RunOnceAsync` after a `Connected` repository
       connection result, before exiting, and to keep exiting non-zero
       only for a failed connection test or an unhandled exception from

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using SpecRunner.Cli;
+using SpecRunner.Console;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
@@ -26,10 +27,11 @@ builder.Services
     .Bind(builder.Configuration.GetSection(CliAgentOptions.SectionName));
 
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
-builder.Services.AddSingleton<IGitService, NotImplementedGitService>();
-builder.Services.AddSingleton<IGitHubService, NotImplementedGitHubService>();
+builder.Services.AddSingleton<IGitService, GitService>();
+builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
 builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
+builder.Services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
@@ -52,4 +54,12 @@ logger.LogInformation(
     connectionResult.Message);
 Console.WriteLine($"Repository connection: {connectionResult.Status} - {connectionResult.Message}");
 
-return connectionResult.Status == RepositoryConnectionStatus.Connected ? 0 : 1;
+if (connectionResult.Status != RepositoryConnectionStatus.Connected)
+{
+    return 1;
+}
+
+var proposeWorkflowRunner = host.Services.GetRequiredService<IProposeWorkflowRunner>();
+await proposeWorkflowRunner.RunOnceAsync();
+
+return 0;

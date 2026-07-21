@@ -2,6 +2,10 @@ namespace SpecRunner.Core.Abstractions;
 
 public interface IGitService
 {
+    Task PullAsync(CancellationToken cancellationToken = default);
+
+    Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default);
+
     Task CreateBranchAsync(string branchName, CancellationToken cancellationToken = default);
 
     Task SwitchBranchAsync(string branchName, CancellationToken cancellationToken = default);
@@ -9,6 +13,4 @@ public interface IGitService
     Task CommitAsync(string message, CancellationToken cancellationToken = default);
 
     Task PushAsync(string branchName, CancellationToken cancellationToken = default);
-
-    Task PullAsync(CancellationToken cancellationToken = default);
 }

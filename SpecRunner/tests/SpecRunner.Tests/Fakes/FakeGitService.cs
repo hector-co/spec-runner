@@ -4,6 +4,10 @@ namespace SpecRunner.Tests.Fakes;
 
 public class FakeGitService : IGitService
 {
+    public Task PullAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task CreateBranchAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task SwitchBranchAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -11,6 +15,4 @@ public class FakeGitService : IGitService
     public Task CommitAsync(string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task PushAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-    public Task PullAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
