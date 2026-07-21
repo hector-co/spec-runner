@@ -6,6 +6,7 @@ using Serilog;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
+using SpecRunner.Core.Models;
 using SpecRunner.Git;
 using SpecRunner.GitHub;
 using SpecRunner.State;
@@ -34,14 +35,15 @@ using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-// Resolve registered services to confirm the DI container is wired correctly.
-host.Services.GetRequiredService<IOptions<SpecRunnerOptions>>();
-host.Services.GetRequiredService<ISpecNameResolver>();
-host.Services.GetRequiredService<IStateStore>();
-host.Services.GetRequiredService<IGitService>();
-host.Services.GetRequiredService<IGitHubService>();
-host.Services.GetRequiredService<IRepositoryConnectionTester>();
-
 logger.LogInformation("SpecRunner host started");
 
-return 0;
+var connectionTester = host.Services.GetRequiredService<IRepositoryConnectionTester>();
+var connectionResult = await connectionTester.TestConnectionAsync();
+
+logger.LogInformation(
+    "Repository connection test result: {Status} - {Message}",
+    connectionResult.Status,
+    connectionResult.Message);
+Console.WriteLine($"Repository connection: {connectionResult.Status} - {connectionResult.Message}");
+
+return connectionResult.Status == RepositoryConnectionStatus.Connected ? 0 : 1;

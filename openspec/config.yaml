@@ -37,6 +37,16 @@ context: |
   shape, service boundaries). It does not implement the comment-driven
   workflow behavior itself.
 
+  Logging convention: all application logging goes through Serilog
+  (`ILogger`/`ILogger<T>`, wired via `UseSerilog`/`ReadFrom.Configuration` in
+  the generic host), using structured message-template calls (e.g.
+  `logger.LogInformation("Testing connection to {RepositoryUrl}", url)`)
+  rather than string concatenation or `Console.WriteLine`. Console and a
+  size-limited rolling file sink (`fileSizeLimitBytes: 1048576`,
+  `rollOnFileSizeLimit: true`) are enabled by default via the `Serilog`
+  section of `appsettings.json`. Never log secret configuration values
+  (e.g. `GitHubToken`) directly or as part of a serialized options object.
+
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
 # Example:

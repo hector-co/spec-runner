@@ -55,51 +55,51 @@
 
 ## 5. Console entry point wiring
 
-- [ ] 5.1 After building the host, resolve `IRepositoryConnectionTester`
+- [x] 5.1 After building the host, resolve `IRepositoryConnectionTester`
       and call `TestConnectionAsync` once.
-- [ ] 5.2 Log the resulting status and message, and print a short summary
+- [x] 5.2 Log the resulting status and message, and print a short summary
       of the connection state to the console.
-- [ ] 5.3 Return exit code `0` when the status is `Connected`, and `1` for
+- [x] 5.3 Return exit code `0` when the status is `Connected`, and `1` for
       every other status.
 
 ## 6. Tests
 
-- [ ] 6.1 Add unit tests for the `RepositoryUrl` parsing helper: valid
+- [x] 6.1 Add unit tests for the `RepositoryUrl` parsing helper: valid
       `https://github.com/{owner}/{repo}` URL, URL with trailing `.git`,
       SSH URL, non-GitHub host, empty string.
-- [ ] 6.2 Add unit tests for the `IRepositoryConnectionTester`
+- [x] 6.2 Add unit tests for the `IRepositoryConnectionTester`
       implementation covering each status (`NotConfigured`,
       `InvalidRepositoryUrl`, `Connected`, `AuthenticationFailed`,
       `RepositoryNotFound`, `NetworkError`), using a fake/mocked HTTP
       message handler rather than real network calls.
-- [ ] 6.3 Add/update the DI smoke test to confirm
+- [x] 6.3 Add/update the DI smoke test to confirm
       `IRepositoryConnectionTester` resolves from the container.
-- [ ] 6.4 Add a test asserting no `RepositoryConnectionResult.Message`
+- [x] 6.4 Add a test asserting no `RepositoryConnectionResult.Message`
       value produced by the tests in 6.2 contains a literal token/secret
       value used in the fake responses.
-- [ ] 6.5 Verify `dotnet test SpecRunner/SpecRunner.sln` passes.
+- [x] 6.5 Verify `dotnet test SpecRunner/SpecRunner.sln` passes.
 
 ## 7. Documentation
 
-- [ ] 7.1 Update `SpecRunner/README.md`: replace `RepositoryOwner`/
+- [x] 7.1 Update `SpecRunner/README.md`: replace `RepositoryOwner`/
       `RepositoryName` documentation with `RepositoryUrl`, and describe the
       startup connection test and its exit-code behavior.
-- [ ] 7.2 Add a short note to `SpecRunner/README.md` about the default
+- [x] 7.2 Add a short note to `SpecRunner/README.md` about the default
       Serilog sinks (console + 1 MB rolling file) and where log files are
       written.
-- [ ] 7.3 Update `openspec/config.yaml` project `context` to note that
+- [x] 7.3 Update `openspec/config.yaml` project `context` to note that
       logging goes through Serilog using structured message-template
       conventions, with console + size-limited rolling-file sinks by
       default.
 
 ## 8. Verification
 
-- [ ] 8.1 Run `dotnet build SpecRunner/SpecRunner.sln` and confirm it
+- [x] 8.1 Run `dotnet build SpecRunner/SpecRunner.sln` and confirm it
       succeeds with no errors.
-- [ ] 8.2 Run `SpecRunner.Console` locally with a valid `RepositoryUrl` and
+- [x] 8.2 Run `SpecRunner.Console` locally with a valid `RepositoryUrl` and
       PAT and confirm it logs `Connected` and exits `0`.
-- [ ] 8.3 Run `SpecRunner.Console` locally with a missing/invalid PAT or
+- [x] 8.3 Run `SpecRunner.Console` locally with a missing/invalid PAT or
       URL and confirm it logs the corresponding failure status and exits
       non-zero.
-- [ ] 8.4 Confirm a rolling log file appears under the configured log
+- [x] 8.4 Confirm a rolling log file appears under the configured log
       directory after a run.
