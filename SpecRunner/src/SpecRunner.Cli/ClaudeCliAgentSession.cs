@@ -55,7 +55,8 @@ public class ClaudeCliAgentSession : ICliAgentSession
             "--input-format",
             "stream-json",
             "--output-format",
-            "stream-json"
+            "stream-json",
+            "--dangerously-skip-permissions"
         };
 
         _process = _processFactory.Create(_cliAgentOptions.Executable, arguments, workingDirectory);
@@ -85,6 +86,20 @@ public class ClaudeCliAgentSession : ICliAgentSession
         }
 
         await SendUserTurnAsync(text, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task CloseInputAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_stateLock)
+        {
+            if (State != CliAgentSessionState.Running)
+            {
+                throw new InvalidOperationException($"Cannot close input while the session is in state {State}.");
+            }
+        }
+
+        _process!.CloseStandardInput();
+        return Task.CompletedTask;
     }
 
     public async Task CancelCurrentRequestAsync(CancellationToken cancellationToken = default)

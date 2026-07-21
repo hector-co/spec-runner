@@ -111,7 +111,8 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
             var specName = _specNameResolver.Resolve(comment.IssueNumber, comment.IssueTitle);
 
             session = _cliAgentSessionFactory.CreateSession();
-            await session.StartAsync($"/opsx-propose {specName}\n{comment.IssueBody}", timeoutCts.Token).ConfigureAwait(false);
+            await session.StartAsync($"\"/opsx-propose {specName}\n{comment.IssueBody}\"", timeoutCts.Token).ConfigureAwait(false);
+            await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
 
             await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
             {

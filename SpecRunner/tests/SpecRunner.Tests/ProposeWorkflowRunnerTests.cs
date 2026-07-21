@@ -144,6 +144,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal("/opsx-propose 45-add-login-page\nWe need a login page.", session.LastPrompt);
+        Assert.True(session.CloseInputCalled);
 
         var pr = Assert.Single(gitHub.CreatedDraftPrs);
         Assert.Equal("feature/45", pr.HeadBranch);
@@ -163,7 +164,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task ThrownExceptionDuringProcessingIsReportedAndProcessingContinuesToNextComment()
     {
-        var (runner, _, gitHub, _, stateStore) = CreateRunner();
+        var (runner, _, gitHub, cliFactory, stateStore) = CreateRunner();
         gitHub.ThrowOnCreateDraftPr = new InvalidOperationException("GitHub API call failed with HTTP 422: validation failed");
         gitHub.ThrowOnCreateDraftPrOnlyOnce = true;
         gitHub.Issues.Add(Issue(45, "Title A", "Body A", Comment(9001, "/propose")));
@@ -185,6 +186,9 @@ public class ProposeWorkflowRunnerTests : IDisposable
         var trackedSucceeded = await stateStore.FindByIssueNumberAsync(46);
         Assert.NotNull(trackedSucceeded);
         Assert.NotNull(trackedSucceeded!.PrNumber);
+
+        Assert.Equal(2, cliFactory.CreatedSessions.Count);
+        Assert.All(cliFactory.CreatedSessions, s => Assert.True(Assert.IsType<FakeCliAgentSession>(s).CloseInputCalled));
     }
 
     [Fact]
@@ -199,6 +203,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.True(session.StopCalled);
+        Assert.True(session.CloseInputCalled);
         Assert.Contains((9001L, "confused"), gitHub.AddedReactions);
         Assert.Contains(gitHub.CreatedComments, c => c.IssueNumber == 45 && c.Body == "Processing this comment timed out.");
 
@@ -284,6 +289,8 @@ public class ProposeWorkflowRunnerTests : IDisposable
         }
 
         public Task SendCommandAsync(string text, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task CloseInputAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task CancelCurrentRequestAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 

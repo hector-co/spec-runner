@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -59,7 +60,20 @@ if (connectionResult.Status != RepositoryConnectionStatus.Connected)
     return 1;
 }
 
+using var shutdownCts = new CancellationTokenSource();
+
+void HandleShutdownSignal(PosixSignalContext context)
+{
+    context.Cancel = true;
+    shutdownCts.Cancel();
+}
+
+using var sigIntRegistration = PosixSignalRegistration.Create(PosixSignal.SIGINT, HandleShutdownSignal);
+using var sigTermRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, HandleShutdownSignal);
+
 var proposeWorkflowRunner = host.Services.GetRequiredService<IProposeWorkflowRunner>();
-await proposeWorkflowRunner.RunOnceAsync();
+var options = host.Services.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
+
+await PollingLoop.RunAsync(proposeWorkflowRunner, options.PollingInterval, shutdownCts.Token, logger);
 
 return 0;

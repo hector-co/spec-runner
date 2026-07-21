@@ -39,6 +39,8 @@ environment variables, and user secrets in Development) under the `SpecRunner` s
   location (`<LocalRepositoryPath>/.specrunner/state.db`).
 - `BaseBranchName` - base branch used for PRs (defaults to `main`).
 - `TaskTimeout` - per-task timeout, e.g. `"00:10:00"` for 10 minutes.
+- `PollingInterval` - delay between `propose-workflow` scan passes, e.g. `"00:00:10"` for 10
+  seconds (the default).
 
 `SpecRunner.Console` also binds `CliAgentOptions` under the `CliAgent` section:
 
@@ -66,6 +68,13 @@ child process and its stdin/stdout for the session's lifetime and exposes:
   (multi-turn), without restarting the process.
 - `CancelCurrentRequestAsync()` - sends an interrupt control message to stop the current
   in-flight turn while leaving the process and session `Running`.
+- `CloseInputAsync()` - closes the underlying process's standard input while leaving the
+  process running and the session in state `Running`, so a caller that has finished
+  sending turns can signal end-of-input and let the process notice stdin closed and exit
+  on its own. Unlike `StopAsync()`, this does not wait for exit, force-kill the process, or
+  change `State`; the session still reaches `Completed`/`Failed` through the normal
+  process-exit path. Valid only in state `Running`; throws `InvalidOperationException`
+  otherwise.
 - `StopAsync()` - closes stdin, waits briefly for a graceful exit, then force-kills the
   process if needed, transitioning to `Stopped`. `ICliAgentSession` implements
   `IAsyncDisposable` and stops the process on disposal if not already in a terminal
@@ -73,17 +82,19 @@ child process and its stdin/stdout for the session's lifetime and exposes:
 
 `ClaudeCliAgentSession` (the default, Claude-CLI-specific implementation) launches the
 executable with `--print --verbose --input-format stream-json --output-format
-stream-json` so a single long-lived process exchanges newline-delimited JSON on
-stdin/stdout across multiple turns.
+stream-json --dangerously-skip-permissions` so a single long-lived process exchanges
+newline-delimited JSON on stdin/stdout across multiple turns without ever blocking on a
+permission prompt - SpecRunner runs unattended, so there is no human available to answer
+one.
 
 This is a process-execution primitive only: it decides neither when to start a session
 nor what prompt to send - that's the `propose-workflow`'s job below.
 
 ## Propose workflow
 
-On every run, after a successful repository connection test, `SpecRunner.Console` runs
-one scan pass (`IProposeWorkflowRunner.RunOnceAsync`, implemented by `ProposeWorkflowRunner`)
-over the configured repository's open issues:
+After a successful repository connection test, `SpecRunner.Console` repeatedly runs scan
+passes (`IProposeWorkflowRunner.RunOnceAsync`, implemented by `ProposeWorkflowRunner`) over
+the configured repository's open issues (see Status below for the polling loop):
 
 1. It lists open issues and their comments, and treats a comment as an eligible trigger
    when its body, trimmed of leading/trailing whitespace, is exactly `/propose` or starts
@@ -100,8 +111,10 @@ over the configured repository's open issues:
    - **Fresh proposal**: pulls and hard-resets the local clone to `BaseBranchName`,
      creates/switches to `feature/{issue-number}`, resolves the spec name via
      `ISpecNameResolver`, and runs the CLI coding agent with an
-     `/opsx-propose {spec-name}\n{issue-body}` prompt. On success it commits, pushes, and
-     opens a draft PR, then adds a `rocket` reaction and a reply with the new PR number.
+     `/opsx-propose {spec-name}\n{issue-body}` prompt, closing the session's input
+     immediately after starting it since this is a one-shot prompt with no follow-up
+     turns. On success it commits, pushes, and opens a draft PR, then adds a `rocket`
+     reaction and a reply with the new PR number.
 4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
    (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
    human-readable reply instead of a raw exception, and processing moves on to the next
@@ -118,9 +131,21 @@ trigger; `/update`, `/implement`, `/archive`, and PR-level comments are out of s
 `GitHubToken` can reach the target repository via the GitHub REST API
 (`IRepositoryConnectionTester`). It logs and prints the resulting status (`NotConfigured`,
 `InvalidRepositoryUrl`, `Connected`, `AuthenticationFailed`, `RepositoryNotFound`, or
-`NetworkError`) and a message. If the status is `Connected`, it runs one `propose-workflow`
-scan pass (see above) and exits `0`; any other connection status exits `1` without running
-the scan. `GitHubToken` is never included in printed or logged output.
+`NetworkError`) and a message. If the status is anything other than `Connected`, it exits
+`1` without running any scan pass. `GitHubToken` is never included in printed or logged
+output.
+
+If the status is `Connected`, the process enters a polling loop: it runs one
+`propose-workflow` scan pass to completion, waits `SpecRunnerOptions.PollingInterval`, and
+repeats, indefinitely - it no longer exits after a single pass. An unhandled exception from
+a scan pass is logged and does not stop the process; the loop simply waits out
+`PollingInterval` and tries again. Sending `SIGINT` (Ctrl+C) or `SIGTERM` requests a
+graceful shutdown: an in-progress scan pass is allowed to finish (no scan pass is
+cancelled mid-flight), no further scan pass is started, and the process then exits with
+code `0`. A shutdown signal received while waiting out `PollingInterval` ends the wait
+immediately instead of waiting out the full interval. Because the process now runs
+continuously, running it expects an external supervisor (service manager, container
+restart policy) rather than a one-shot invocation.
 
 ## Logging
 

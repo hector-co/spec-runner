@@ -13,4 +13,6 @@ public class SpecRunnerOptions
     public string BaseBranchName { get; set; } = "main";
 
     public TimeSpan TaskTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
+    public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(10);
 }

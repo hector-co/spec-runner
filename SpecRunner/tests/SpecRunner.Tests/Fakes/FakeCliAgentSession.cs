@@ -43,6 +43,14 @@ public class FakeCliAgentSession : ICliAgentSession
 
     public Task SendCommandAsync(string text, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public bool CloseInputCalled { get; private set; }
+
+    public Task CloseInputAsync(CancellationToken cancellationToken = default)
+    {
+        CloseInputCalled = true;
+        return Task.CompletedTask;
+    }
+
     public Task CancelCurrentRequestAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task StopAsync(CancellationToken cancellationToken = default)
