@@ -115,7 +115,7 @@
       succeeds with no errors.
 - [x] 6.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
       tests pass.
-- [ ] 6.3 If a test GitHub repository and PAT are available, manually
+- [x] 6.3 If a test GitHub repository and PAT are available, manually
       post a `/update` comment on an open PR tracked by a prior `/propose`
       run, run `SpecRunner.Console`, and confirm: the `eyes` reaction
       appears immediately, the CLI agent runs against the PR's existing
