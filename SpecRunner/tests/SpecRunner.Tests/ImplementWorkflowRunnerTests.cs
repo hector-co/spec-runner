@@ -39,13 +39,14 @@ public class ImplementWorkflowRunnerTests : IDisposable
         var cliFactory = new FakeCliAgentSessionFactory(sessionFactory ?? (() => new FakeCliAgentSession(CliAgentSessionState.Completed)));
         var stateStore = new SqliteStateStore(_stateFilePath);
         var tasksFileReader = new FakeTasksFileReader();
+        var commandTemplateRenderer = new CommandTemplateRenderer();
         var options = Options.Create(new SpecRunnerOptions
         {
             BaseBranchName = "main",
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new ImplementWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, options, NullLogger<ImplementWorkflowRunner>.Instance);
+        var runner = new ImplementWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<ImplementWorkflowRunner>.Instance);
         return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
     }
 
@@ -98,7 +99,13 @@ public class ImplementWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("\"/opsx-apply 45-add-login-page add validation for the email field\"", session.LastPrompt);
+        Assert.Equal(
+            "\"/opsx-apply 45-add-login-page add validation for the email field\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
+            session.LastPrompt);
     }
 
     [Fact]
@@ -163,7 +170,13 @@ public class ImplementWorkflowRunnerTests : IDisposable
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("\"/opsx-apply 45-add-login-page add validation\"", session.LastPrompt);
+        Assert.Equal(
+            "\"/opsx-apply 45-add-login-page add validation\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
+            session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 
         Assert.Contains((9001L, "+1"), gitHub.AddedReactions);

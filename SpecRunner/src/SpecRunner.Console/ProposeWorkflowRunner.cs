@@ -17,6 +17,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
     private readonly ISpecNameResolver _specNameResolver;
     private readonly ITasksFileReader _tasksFileReader;
+    private readonly ICommandTemplateRenderer _commandTemplateRenderer;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<ProposeWorkflowRunner> _logger;
 
@@ -27,6 +28,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         ICliAgentSessionFactory cliAgentSessionFactory,
         ISpecNameResolver specNameResolver,
         ITasksFileReader tasksFileReader,
+        ICommandTemplateRenderer commandTemplateRenderer,
         IOptions<SpecRunnerOptions> options,
         ILogger<ProposeWorkflowRunner> logger)
     {
@@ -36,6 +38,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         _cliAgentSessionFactory = cliAgentSessionFactory;
         _specNameResolver = specNameResolver;
         _tasksFileReader = tasksFileReader;
+        _commandTemplateRenderer = commandTemplateRenderer;
         _options = options.Value;
         _logger = logger;
     }
@@ -113,8 +116,17 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
 
             var specName = _specNameResolver.Resolve(comment.IssueNumber, comment.IssueTitle);
 
+            var prompt = await _commandTemplateRenderer.RenderAsync(
+                "propose",
+                new Dictionary<string, string>
+                {
+                    ["spec_name"] = specName,
+                    ["issue_body"] = comment.IssueBody
+                },
+                timeoutCts.Token).ConfigureAwait(false);
+
             session = _cliAgentSessionFactory.CreateSession();
-            await session.StartAsync($"\"/opsx-propose {specName}\n{comment.IssueBody}\"", timeoutCts.Token).ConfigureAwait(false);
+            await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
 
             await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))

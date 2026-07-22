@@ -41,13 +41,14 @@ public class ProposeWorkflowRunnerTests : IDisposable
         var stateStore = new SqliteStateStore(_stateFilePath);
         var specNameResolver = new SpecNameResolver();
         var tasksFileReader = new FakeTasksFileReader();
+        var commandTemplateRenderer = new CommandTemplateRenderer();
         var options = Options.Create(new SpecRunnerOptions
         {
             BaseBranchName = "main",
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new ProposeWorkflowRunner(gitHub, git, stateStore, cliFactory, specNameResolver, tasksFileReader, options, NullLogger<ProposeWorkflowRunner>.Instance);
+        var runner = new ProposeWorkflowRunner(gitHub, git, stateStore, cliFactory, specNameResolver, tasksFileReader, commandTemplateRenderer, options, NullLogger<ProposeWorkflowRunner>.Instance);
         return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
     }
 
@@ -145,7 +146,13 @@ public class ProposeWorkflowRunnerTests : IDisposable
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
-        Assert.Equal("\"/opsx-propose 45-add-login-page\nWe need a login page.\"", session.LastPrompt);
+        Assert.Equal(
+            "\"/opsx-propose 45-add-login-page\nWe need a login page.\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
+            session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 
         var pr = Assert.Single(gitHub.CreatedDraftPrs);
