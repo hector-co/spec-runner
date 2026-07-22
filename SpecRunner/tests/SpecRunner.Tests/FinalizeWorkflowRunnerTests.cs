@@ -160,7 +160,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     public async Task SuccessfulRunRefreshesBranchCommitsPushesMarksReadyAndUpdatesState()
     {
         var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
-        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         tasksFileReader.ArchivedContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [x] 1.1 Done";
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize the export button was implemented under a different name") };
@@ -168,7 +168,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         Assert.Equal(
-            new[] { "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:finalizing specs for #45", "Push:feature/45" },
+            new[] { "ResetHard:HEAD", "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:finalizing specs for #45", "Push:feature/45" },
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
@@ -209,10 +209,25 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task TrackedBranchNameIsUsedEvenWhenItDiffersFromPrHeadBranch()
+    {
+        var (runner, git, gitHub, _, stateStore, _) = CreateRunner();
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45-2" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal(
+            new[] { "ResetHard:HEAD", "Fetch:feature/45-2", "SwitchBranch:feature/45-2", "ResetHard:origin/feature/45-2", "Commit:finalizing specs for #45", "Push:feature/45-2" },
+            git.Calls);
+    }
+
+    [Fact]
     public async Task FailureMarkingPrReadyForReviewIsReportedAsError()
     {
         var (runner, git, gitHub, cliFactory, stateStore, _) = CreateRunner();
-        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
         gitHub.ThrowOnMarkPrReadyForReview = new InvalidOperationException("PR is not a draft");

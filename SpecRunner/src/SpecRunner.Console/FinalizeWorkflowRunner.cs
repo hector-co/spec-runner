@@ -113,9 +113,10 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
                 return;
             }
 
-            await _git.FetchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.SwitchBranchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
+            await _git.FetchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.SwitchBranchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync($"origin/{trackedIssue.BranchName}", timeoutCts.Token).ConfigureAwait(false);
 
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "archive",
@@ -141,7 +142,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             }
 
             await _git.CommitAsync($"finalizing specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
-            await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
 
             var archivedTasksContent = await _tasksFileReader.ReadArchivedAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
             var finalBody = $"{archivedTasksContent ?? string.Empty}\n\nCloses #{trackedIssue.IssueNumber}";

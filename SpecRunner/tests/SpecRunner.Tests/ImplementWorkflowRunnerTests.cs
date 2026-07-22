@@ -158,7 +158,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
     public async Task SuccessfulRunRefreshesBranchCommitsPushesAndUpdatesState()
     {
         var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
-        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         tasksFileReader.CurrentContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [x] 1.1 Done";
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/implement add validation") };
@@ -166,7 +166,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         Assert.Equal(
-            new[] { "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:applying specs for #45", "Push:feature/45" },
+            new[] { "ResetHard:HEAD", "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:applying specs for #45", "Push:feature/45" },
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
@@ -194,7 +194,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
     public async Task MissingTasksFileSkipsPrDescriptionUpdate()
     {
         var (runner, _, gitHub, _, stateStore, _) = CreateRunner();
-        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/implement") };
 
@@ -202,6 +202,21 @@ public class ImplementWorkflowRunnerTests : IDisposable
 
         Assert.Empty(gitHub.UpdatedPullRequestDescriptions);
         Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12);
+    }
+
+    [Fact]
+    public async Task TrackedBranchNameIsUsedEvenWhenItDiffersFromPrHeadBranch()
+    {
+        var (runner, git, gitHub, _, stateStore, _) = CreateRunner();
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45-2" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/implement") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal(
+            new[] { "ResetHard:HEAD", "Fetch:feature/45-2", "SwitchBranch:feature/45-2", "ResetHard:origin/feature/45-2", "Commit:applying specs for #45", "Push:feature/45-2" },
+            git.Calls);
     }
 
     [Fact]

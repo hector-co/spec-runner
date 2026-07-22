@@ -24,24 +24,24 @@
 
 ## 4. Implement workflow: clean-then-switch and stored branch name
 
-- [ ] 4.1 In `ImplementWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/ImplementWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
-- [ ] 4.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
-- [ ] 4.3 Update `ImplementWorkflowRunnerTests.cs`: assert the call order now starts with `ResetHard:HEAD`; assert `Fetch`/`SwitchBranch`/`ResetHard`/`Push` target the tracked record's `BranchName` even when it differs from `comment.PrHeadBranch` (add a test case where a fake tracked issue's `BranchName` differs from the PR's reported head branch, and assert the tracked value wins).
+- [x] 4.1 In `ImplementWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/ImplementWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
+- [x] 4.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
+- [x] 4.3 Update `ImplementWorkflowRunnerTests.cs`: assert the call order now starts with `ResetHard:HEAD`; assert `Fetch`/`SwitchBranch`/`ResetHard`/`Push` target the tracked record's `BranchName` even when it differs from `comment.PrHeadBranch` (add a test case where a fake tracked issue's `BranchName` differs from the PR's reported head branch, and assert the tracked value wins).
 
 ## 5. Update workflow: clean-then-switch and stored branch name
 
-- [ ] 5.1 In `UpdateWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/UpdateWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
-- [ ] 5.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
-- [ ] 5.3 Update `UpdateWorkflowRunnerTests.cs` with the same call-order and stored-branch-name assertions as task 4.3.
+- [x] 5.1 In `UpdateWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/UpdateWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
+- [x] 5.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
+- [x] 5.3 Update `UpdateWorkflowRunnerTests.cs` with the same call-order and stored-branch-name assertions as task 4.3.
 
 ## 6. Finalize workflow: clean-then-switch and stored branch name
 
-- [ ] 6.1 In `FinalizeWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/FinalizeWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
-- [ ] 6.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
-- [ ] 6.3 Update `FinalizeWorkflowRunnerTests.cs` with the same call-order and stored-branch-name assertions as task 4.3.
+- [x] 6.1 In `FinalizeWorkflowRunner.ProcessCommentAsync` (`SpecRunner.Console/FinalizeWorkflowRunner.cs`), add `await _git.ResetHardAsync("HEAD", ...)` as the first git call, before the existing `_git.FetchAsync(...)` call.
+- [x] 6.2 Change the `Fetch`/`Switch`/`ResetHard`/`Push` calls to use `trackedIssue.BranchName` instead of `comment.PrHeadBranch`.
+- [x] 6.3 Update `FinalizeWorkflowRunnerTests.cs` with the same call-order and stored-branch-name assertions as task 4.3.
 
 ## 7. Verification and spec sync
 
-- [ ] 7.1 Run `dotnet build` and `dotnet test` from `SpecRunner/` and confirm everything is green, including the new `GitServiceTests`, `SqliteStateStoreTests`, and the four `*WorkflowRunnerTests` cases added above.
-- [ ] 7.2 Run `openspec validate feat-19-ensure-all-workflow-steps-are-executed-in-its-corresponding-git-branch --type change --strict` and confirm it passes.
-- [ ] 7.3 After implementation and tests are green, sync the delta specs (`git-operations`, `state-store-schema`, `propose-workflow`, `implement-workflow`, `update-workflow`, `finalize-workflow`) into `openspec/specs/` per the normal archive flow.
+- [x] 7.1 Run `dotnet build` and `dotnet test` from `SpecRunner/` and confirm everything is green, including the new `GitServiceTests`, `SqliteStateStoreTests`, and the four `*WorkflowRunnerTests` cases added above.
+- [x] 7.2 Run `openspec validate feat-19-ensure-all-workflow-steps-are-executed-in-its-corresponding-git-branch --type change --strict` and confirm it passes.
+- [x] 7.3 After implementation and tests are green, sync the delta specs (`git-operations`, `state-store-schema`, `propose-workflow`, `implement-workflow`, `update-workflow`, `finalize-workflow`) into `openspec/specs/` per the normal archive flow.
