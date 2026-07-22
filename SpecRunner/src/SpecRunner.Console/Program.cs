@@ -28,6 +28,7 @@ builder.Services
     .Bind(builder.Configuration.GetSection(CliAgentOptions.SectionName));
 
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
+builder.Services.AddSingleton<ITasksFileReader, TasksFileReader>();
 builder.Services.AddSingleton<IGitService, GitService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();

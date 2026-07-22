@@ -33,6 +33,10 @@ public class RecordingGitHubService : IGitHubService
 
     public Exception? ThrowOnMarkPrReadyForReview { get; set; }
 
+    public List<(int PrNumber, string Body)> UpdatedPullRequestDescriptions { get; } = new();
+
+    public Exception? ThrowOnUpdatePullRequestDescription { get; set; }
+
     public Task<string> GetAuthenticatedLoginAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(Login);
 
@@ -104,6 +108,17 @@ public class RecordingGitHubService : IGitHubService
         }
 
         MarkedReadyForReview.Add(prNumber);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default)
+    {
+        if (ThrowOnUpdatePullRequestDescription is not null)
+        {
+            throw ThrowOnUpdatePullRequestDescription;
+        }
+
+        UpdatedPullRequestDescriptions.Add((prNumber, body));
         return Task.CompletedTask;
     }
 }
