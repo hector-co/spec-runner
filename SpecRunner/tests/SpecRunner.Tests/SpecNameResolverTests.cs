@@ -11,7 +11,7 @@ public class SpecNameResolverTests
     {
         var result = _resolver.Resolve(45, "Add Login Page");
 
-        Assert.Equal("45-add-login-page", result);
+        Assert.Equal("feat-45-add-login-page", result);
     }
 
     [Fact]
@@ -19,7 +19,7 @@ public class SpecNameResolverTests
     {
         var result = _resolver.Resolve(1, "UPPER CASE TITLE");
 
-        Assert.Equal("1-upper-case-title", result);
+        Assert.Equal("feat-1-upper-case-title", result);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class SpecNameResolverTests
     {
         var result = _resolver.Resolve(7, "Fix: crash on save/load?");
 
-        Assert.StartsWith("7-", result);
+        Assert.StartsWith("feat-7-", result);
         Assert.DoesNotContain(':', result);
         Assert.DoesNotContain('/', result);
         Assert.DoesNotContain('?', result);

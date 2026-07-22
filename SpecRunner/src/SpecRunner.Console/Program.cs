@@ -29,6 +29,7 @@ builder.Services
 
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
 builder.Services.AddSingleton<ITasksFileReader, TasksFileReader>();
+builder.Services.AddSingleton<ISpecFolderResolver, SpecFolderResolver>();
 builder.Services.AddSingleton<ICommandTemplateRenderer, CommandTemplateRenderer>();
 builder.Services.AddSingleton<IGitService, GitService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();

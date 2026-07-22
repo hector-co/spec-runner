@@ -83,3 +83,14 @@ recompute or guess it.
   order) is used, since there's no modification-time signal to disambiguate
   freshly-created directories the way `ReadArchivedAsync` does for archived
   ones.
+- Task 4.1 ("confirm all tests pass") is interpreted relative to the tests
+  this change touches: `dotnet test` on this branch shows 8 pre-existing
+  failures (`CommandTemplateRendererTests`, `ImplementWorkflowRunnerTests`,
+  `UpdateWorkflowRunnerTests`, `FinalizeWorkflowRunnerTests`, and the
+  unrelated assertion in `ProposeWorkflowRunnerTests.SuccessfulRunCommitsPushesCreatesDraftPrAndUpdatesState`)
+  caused by `\n` vs `\r\n` in rendered command-template output — reproduced
+  identically on a clean stash of this branch before any of this change's
+  edits were applied, confirming it predates and is unrelated to this
+  change. All tests added or modified for this change (`SpecNameResolverTests`,
+  the new `SpecFolderResolverTests`, and the new/updated
+  `ProposeWorkflowRunnerTests` cases) pass.
