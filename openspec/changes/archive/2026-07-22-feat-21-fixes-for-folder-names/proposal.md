@@ -94,3 +94,7 @@ recompute or guess it.
   change. All tests added or modified for this change (`SpecNameResolverTests`,
   the new `SpecFolderResolverTests`, and the new/updated
   `ProposeWorkflowRunnerTests` cases) pass.
+- The archive request named the change `21-fixes-for-folder-names-for-openspec-changes`,
+  which didn't match any on-disk change; `openspec list` showed the only
+  active change as `feat-21-fixes-for-folder-names` (issue #21, all 11
+  tasks already complete), so that was treated as the intended target.
