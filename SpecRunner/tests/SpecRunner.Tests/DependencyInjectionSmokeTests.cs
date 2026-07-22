@@ -27,6 +27,7 @@ public class DependencyInjectionSmokeTests
         services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
         services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
         services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
+        services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
         using var provider = services.BuildServiceProvider();
@@ -38,5 +39,6 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());
         Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
         Assert.NotNull(provider.GetRequiredService<IProposeWorkflowRunner>());
+        Assert.NotNull(provider.GetRequiredService<IImplementWorkflowRunner>());
     }
 }

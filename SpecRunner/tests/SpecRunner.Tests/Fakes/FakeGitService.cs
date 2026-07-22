@@ -6,6 +6,8 @@ public class FakeGitService : IGitService
 {
     public Task PullAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task FetchAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task CreateBranchAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;

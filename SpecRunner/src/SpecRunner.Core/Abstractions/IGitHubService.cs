@@ -18,6 +18,8 @@ public interface IGitHubService
 
     Task<int> CreateDraftPullRequestAsync(string title, string body, string headBranch, string baseBranch, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<GitHubPullRequest>> ListOpenPullRequestsAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default);
 
     Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default);

@@ -159,6 +159,64 @@ public class GitHubServiceTests
     }
 
     [Fact]
+    public async Task ListOpenPullRequestsAsyncReturnsNumberTitleBodyAndHeadBranch()
+    {
+        var service = CreateService(request =>
+        {
+            Assert.Equal("/repos/owner/repo/pulls", request.RequestUri!.AbsolutePath);
+            return JsonResponse(HttpStatusCode.OK, """
+                [{"number":12,"title":"Add Login Page","body":"We need a login page.","head":{"ref":"feature/45"}}]
+                """);
+        });
+
+        var pullRequests = await service.ListOpenPullRequestsAsync();
+
+        var pr = Assert.Single(pullRequests);
+        Assert.Equal(12, pr.Number);
+        Assert.Equal("Add Login Page", pr.Title);
+        Assert.Equal("We need a login page.", pr.Body);
+        Assert.Equal("feature/45", pr.HeadBranch);
+    }
+
+    [Fact]
+    public async Task ReadPrCommentsAsyncReturnsPrConversationComments()
+    {
+        var service = CreateService(request =>
+        {
+            Assert.Equal("/repos/owner/repo/issues/12/comments", request.RequestUri!.AbsolutePath);
+            return JsonResponse(HttpStatusCode.OK, """
+                [{"id":9001,"user":{"login":"someone"},"body":"/implement","created_at":"2026-01-01T00:00:00Z"}]
+                """);
+        });
+
+        var comments = await service.ReadPrCommentsAsync(12);
+
+        var comment = Assert.Single(comments);
+        Assert.Equal(9001, comment.CommentId);
+        Assert.Equal("someone", comment.Author);
+        Assert.Equal("/implement", comment.Body);
+    }
+
+    [Fact]
+    public async Task WritePrCommentAsyncPostsBodyToPrCommentsEndpoint()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
+        var service = CreateService(request =>
+        {
+            capturedRequest = request;
+            capturedBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse(HttpStatusCode.Created, """{"id":1}""");
+        });
+
+        await service.WritePrCommentAsync(12, "Pushed changes for this comment.");
+
+        Assert.Equal(HttpMethod.Post, capturedRequest!.Method);
+        Assert.Equal("https://api.github.com/repos/owner/repo/issues/12/comments", capturedRequest.RequestUri!.ToString());
+        Assert.Contains("\"body\":\"Pushed changes for this comment.\"", capturedBody);
+    }
+
+    [Fact]
     public async Task NonSuccessResponseThrowsGitHubApiExceptionWithStatusCode()
     {
         var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)

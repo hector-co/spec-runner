@@ -9,11 +9,17 @@ public class RecordingGitHubService : IGitHubService
 
     public List<GitHubIssue> Issues { get; } = new();
 
+    public List<GitHubPullRequest> PullRequests { get; } = new();
+
+    public Dictionary<int, List<PrComment>> PrComments { get; } = new();
+
     public Dictionary<long, List<GitHubReaction>> Reactions { get; } = new();
 
     public List<(long CommentId, string ReactionType)> AddedReactions { get; } = new();
 
     public List<(int IssueNumber, string Body)> CreatedComments { get; } = new();
+
+    public List<(int PrNumber, string Body)> WrittenPrComments { get; } = new();
 
     public List<(string Title, string Body, string HeadBranch, string BaseBranch)> CreatedDraftPrs { get; } = new();
 
@@ -73,11 +79,18 @@ public class RecordingGitHubService : IGitHubService
         return Task.FromResult(NextPrNumber);
     }
 
+    public Task<IReadOnlyList<GitHubPullRequest>> ListOpenPullRequestsAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubPullRequest>>(PullRequests);
+
     public Task<IReadOnlyList<PrComment>> ReadPrCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => Task.FromResult<IReadOnlyList<PrComment>>(
+            PrComments.TryGetValue(prNumber, out var list) ? list : new List<PrComment>());
 
     public Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        WrittenPrComments.Add((prNumber, body));
+        return Task.CompletedTask;
+    }
 
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();

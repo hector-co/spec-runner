@@ -39,8 +39,9 @@ environment variables, and user secrets in Development) under the `SpecRunner` s
   location (`<LocalRepositoryPath>/.specrunner/state.db`).
 - `BaseBranchName` - base branch used for PRs (defaults to `main`).
 - `TaskTimeout` - per-task timeout, e.g. `"00:10:00"` for 10 minutes.
-- `PollingInterval` - delay between `propose-workflow` scan passes, e.g. `"00:00:10"` for 10
-  seconds (the default).
+- `PollingInterval` - delay between poll cycles (each running one `propose-workflow` scan
+  pass then one `implement-workflow` scan pass), e.g. `"00:00:10"` for 10 seconds (the
+  default).
 
 `SpecRunner.Console` also binds `CliAgentOptions` under the `CliAgent` section:
 
@@ -123,7 +124,54 @@ the configured repository's open issues (see Status below for the polling loop):
 Every outcome is also recorded in the SQLite state store (issue number, resolved spec
 name, PR number if any, and the triggering comment's status), which is what the
 already-has-a-PR check consults on future runs. This change only handles the `/propose`
-trigger; `/update`, `/implement`, `/archive`, and PR-level comments are out of scope.
+trigger; `/update`, `/archive`, and PR review (inline code) comments are out of scope.
+
+## Implement workflow
+
+After the `propose-workflow` scan pass, `SpecRunner.Console` runs an `implement-workflow`
+scan pass (`IImplementWorkflowRunner.RunOnceAsync`, implemented by `ImplementWorkflowRunner`)
+over the configured repository's open pull requests, driving further work on a PR that
+`/propose` already opened:
+
+1. It lists open PRs and, for each, reads its general conversation comments via
+   `ReadPrCommentsAsync`, treating a comment as an eligible trigger when its body, trimmed
+   of leading/trailing whitespace, is exactly `/implement` or starts with `/implement`
+   followed by whitespace (so `/implemented` or `/implement` used mid-sentence does not
+   trigger). The text after the token (and its separating whitespace) becomes that
+   comment's instructions.
+2. A comment already carrying an `eyes`, `+1`, or `confused` reaction from the
+   authenticated bot identity is skipped, so re-running the console app never reprocesses
+   a comment that is already in-progress, done, or errored (including a previously-errored
+   comment - reprocessing it forever on every poll would otherwise be the alternative).
+3. Each remaining eligible comment is processed in turn (never concurrently, and never
+   concurrently with `propose-workflow`, since all comments share the one local clone).
+   Processing starts by adding an `eyes` reaction, then resolves the PR's associated spec
+   via `IStateStore.FindByPrNumberAsync`:
+   - **Untracked PR** (no record - the PR wasn't opened by `/propose`, or its record was
+     lost): posts a reply explaining that no associated spec/change was found and adds a
+     `confused` reaction. No git operation, CLI-agent session, or state-store write
+     happens for this comment.
+   - **Tracked PR**: fetches, switches to, and hard-resets the PR's existing head branch
+     to `origin/{branch}` (never `BaseBranchName` - the branch already exists), then runs
+     the CLI coding agent with an `/opsx-apply {spec-name} {instructions}` prompt (sent as
+     a single value wrapped in escaped double quotes, matching `propose-workflow`'s
+     `/opsx-propose` prompt-quoting convention) using the tracked record's spec name. On
+     success it commits with message `"applying specs for #{issue-number}"` (the issue
+     number from the tracked record) and pushes the existing branch - no new branch or PR
+     is created - then adds a `+1` reaction (the closest available GitHub reaction to a
+     checkmark) and a reply confirming the push.
+4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
+   (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
+   human-readable reply instead of a raw exception, and processing moves on to the next
+   eligible comment rather than aborting the scan pass.
+
+A successful or errored outcome on a tracked PR is also recorded in the SQLite state store
+under the tracked record's issue number. An untracked PR's outcome is not recorded in the
+state store (there is no issue number to key it under) - the `confused` reaction on the
+comment itself is what prevents it from being reprocessed on the next scan pass. This
+change only handles general PR conversation comments; `/update`-style follow-up comments
+that aren't a `/implement` trigger, marking a PR ready for review, and PR review (inline
+code) comments are out of scope.
 
 ## Status
 
@@ -136,14 +184,17 @@ trigger; `/update`, `/implement`, `/archive`, and PR-level comments are out of s
 output.
 
 If the status is `Connected`, the process enters a polling loop: it runs one
-`propose-workflow` scan pass to completion, waits `SpecRunnerOptions.PollingInterval`, and
-repeats, indefinitely - it no longer exits after a single pass. An unhandled exception from
-a scan pass is logged and does not stop the process; the loop simply waits out
-`PollingInterval` and tries again. Sending `SIGINT` (Ctrl+C) or `SIGTERM` requests a
-graceful shutdown: an in-progress scan pass is allowed to finish (no scan pass is
-cancelled mid-flight), no further scan pass is started, and the process then exits with
-code `0`. A shutdown signal received while waiting out `PollingInterval` ends the wait
-immediately instead of waiting out the full interval. Because the process now runs
+`propose-workflow` scan pass to completion, then one `implement-workflow` scan pass to
+completion, waits `SpecRunnerOptions.PollingInterval`, and repeats, indefinitely - it no
+longer exits after a single pass. The two scan passes always run sequentially, never
+concurrently, since they share the same local clone. An unhandled exception from either
+scan pass is logged and does not stop the process or prevent the other scan pass from
+running that same cycle; the loop simply waits out `PollingInterval` and tries again.
+Sending `SIGINT` (Ctrl+C) or `SIGTERM` requests a graceful shutdown: an in-progress scan
+pass is allowed to finish (no scan pass is cancelled mid-flight), no further
+`propose-workflow` or `implement-workflow` pass is started, and the process then exits
+with code `0`. A shutdown signal received while waiting out `PollingInterval` ends the
+wait immediately instead of waiting out the full interval. Because the process now runs
 continuously, running it expects an external supervisor (service manager, container
 restart policy) rather than a one-shot invocation.
 

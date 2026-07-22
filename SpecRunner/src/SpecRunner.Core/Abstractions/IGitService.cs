@@ -4,6 +4,8 @@ public interface IGitService
 {
     Task PullAsync(CancellationToken cancellationToken = default);
 
+    Task FetchAsync(string branchName, CancellationToken cancellationToken = default);
+
     Task ResetHardAsync(string targetRef, CancellationToken cancellationToken = default);
 
     Task CreateBranchAsync(string branchName, CancellationToken cancellationToken = default);
