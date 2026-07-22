@@ -38,13 +38,14 @@ public class UpdateWorkflowRunnerTests : IDisposable
         var gitHub = new RecordingGitHubService();
         var cliFactory = new FakeCliAgentSessionFactory(sessionFactory ?? (() => new FakeCliAgentSession(CliAgentSessionState.Completed)));
         var stateStore = new SqliteStateStore(_stateFilePath);
+        var commandTemplateRenderer = new CommandTemplateRenderer();
         var options = Options.Create(new SpecRunnerOptions
         {
             BaseBranchName = "main",
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new UpdateWorkflowRunner(gitHub, git, stateStore, cliFactory, options, NullLogger<UpdateWorkflowRunner>.Instance);
+        var runner = new UpdateWorkflowRunner(gitHub, git, stateStore, cliFactory, commandTemplateRenderer, options, NullLogger<UpdateWorkflowRunner>.Instance);
         return (runner, git, gitHub, cliFactory, stateStore);
     }
 
@@ -98,7 +99,12 @@ public class UpdateWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Update the OpenSpec change \"45-add-login-page\" to reflect the following new requirement/information:\nadd validation for the email field\"",
+            "\"Update the OpenSpec change \"45-add-login-page\" to reflect the following new requirement/information:\n" +
+            "add validation for the email field\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
             session.LastPrompt);
     }
 
@@ -164,7 +170,12 @@ public class UpdateWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Update the OpenSpec change \"45-add-login-page\" to reflect the following new requirement/information:\nthe export button must also support CSV\"",
+            "\"Update the OpenSpec change \"45-add-login-page\" to reflect the following new requirement/information:\n" +
+            "the export button must also support CSV\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
             session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 

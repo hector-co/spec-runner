@@ -15,6 +15,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
     private readonly IGitService _git;
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
+    private readonly ICommandTemplateRenderer _commandTemplateRenderer;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<UpdateWorkflowRunner> _logger;
 
@@ -23,6 +24,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
         IGitService git,
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
+        ICommandTemplateRenderer commandTemplateRenderer,
         IOptions<SpecRunnerOptions> options,
         ILogger<UpdateWorkflowRunner> logger)
     {
@@ -30,6 +32,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
         _git = git;
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
+        _commandTemplateRenderer = commandTemplateRenderer;
         _options = options.Value;
         _logger = logger;
     }
@@ -111,10 +114,17 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
             await _git.SwitchBranchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
             await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
 
-            session = _cliAgentSessionFactory.CreateSession();
-            await session.StartAsync(
-                $"\"Update the OpenSpec change \"{trackedIssue.SpecName}\" to reflect the following new requirement/information:\n{comment.Instructions}\"",
+            var prompt = await _commandTemplateRenderer.RenderAsync(
+                "update",
+                new Dictionary<string, string>
+                {
+                    ["spec_name"] = trackedIssue.SpecName,
+                    ["instructions"] = comment.Instructions
+                },
                 timeoutCts.Token).ConfigureAwait(false);
+
+            session = _cliAgentSessionFactory.CreateSession();
+            await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
 
             await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))

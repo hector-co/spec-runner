@@ -1,0 +1,7 @@
+/opsx-propose {{spec_name}}
+{{issue_body}}
+
+This is an unattended run — do not ask for confirmation or clarification
+at any step. If something is ambiguous, make the most reasonable
+assumption, note it in proposal.md under a brief "Assumptions" note, and
+continue.

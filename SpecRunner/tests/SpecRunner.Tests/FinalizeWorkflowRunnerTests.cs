@@ -39,13 +39,14 @@ public class FinalizeWorkflowRunnerTests : IDisposable
         var cliFactory = new FakeCliAgentSessionFactory(sessionFactory ?? (() => new FakeCliAgentSession(CliAgentSessionState.Completed)));
         var stateStore = new SqliteStateStore(_stateFilePath);
         var tasksFileReader = new FakeTasksFileReader();
+        var commandTemplateRenderer = new CommandTemplateRenderer();
         var options = Options.Create(new SpecRunnerOptions
         {
             BaseBranchName = "main",
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new FinalizeWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, options, NullLogger<FinalizeWorkflowRunner>.Instance);
+        var runner = new FinalizeWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<FinalizeWorkflowRunner>.Instance);
         return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
     }
 
@@ -99,7 +100,12 @@ public class FinalizeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\nthe export button task was implemented under a different name\"",
+            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\n" +
+            "the export button task was implemented under a different name\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
             session.LastPrompt);
     }
 
@@ -167,7 +173,12 @@ public class FinalizeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\nthe export button was implemented under a different name\"",
+            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\n" +
+            "the export button was implemented under a different name\n\n" +
+            "This is an unattended run — do not ask for confirmation or clarification\n" +
+            "at any step. If something is ambiguous, make the most reasonable\n" +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
+            "continue.\"",
             session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 

@@ -16,6 +16,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
     private readonly ITasksFileReader _tasksFileReader;
+    private readonly ICommandTemplateRenderer _commandTemplateRenderer;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<FinalizeWorkflowRunner> _logger;
 
@@ -25,6 +26,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
         ITasksFileReader tasksFileReader,
+        ICommandTemplateRenderer commandTemplateRenderer,
         IOptions<SpecRunnerOptions> options,
         ILogger<FinalizeWorkflowRunner> logger)
     {
@@ -33,6 +35,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
         _tasksFileReader = tasksFileReader;
+        _commandTemplateRenderer = commandTemplateRenderer;
         _options = options.Value;
         _logger = logger;
     }
@@ -114,10 +117,17 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             await _git.SwitchBranchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
             await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
 
-            session = _cliAgentSessionFactory.CreateSession();
-            await session.StartAsync(
-                $"\"Run `openspec archive \"{trackedIssue.SpecName}\" --yes`. Mark missing tasks as completed and continue.\n{comment.Instructions}\"",
+            var prompt = await _commandTemplateRenderer.RenderAsync(
+                "archive",
+                new Dictionary<string, string>
+                {
+                    ["spec_name"] = trackedIssue.SpecName,
+                    ["instructions"] = comment.Instructions
+                },
                 timeoutCts.Token).ConfigureAwait(false);
+
+            session = _cliAgentSessionFactory.CreateSession();
+            await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
 
             await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
