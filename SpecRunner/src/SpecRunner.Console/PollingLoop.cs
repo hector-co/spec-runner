@@ -17,7 +17,7 @@ public static class PollingLoop
         {
             try
             {
-                await proposeWorkflowRunner.RunOnceAsync().ConfigureAwait(false);
+                await proposeWorkflowRunner.RunOnceAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -31,7 +31,7 @@ public static class PollingLoop
 
             try
             {
-                await implementWorkflowRunner.RunOnceAsync().ConfigureAwait(false);
+                await implementWorkflowRunner.RunOnceAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -45,7 +45,7 @@ public static class PollingLoop
 
             try
             {
-                await updateWorkflowRunner.RunOnceAsync().ConfigureAwait(false);
+                await updateWorkflowRunner.RunOnceAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
