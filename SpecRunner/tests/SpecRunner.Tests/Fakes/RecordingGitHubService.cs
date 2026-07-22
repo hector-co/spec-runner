@@ -29,6 +29,10 @@ public class RecordingGitHubService : IGitHubService
 
     public bool ThrowOnCreateDraftPrOnlyOnce { get; set; }
 
+    public List<int> MarkedReadyForReview { get; } = new();
+
+    public Exception? ThrowOnMarkPrReadyForReview { get; set; }
+
     public Task<string> GetAuthenticatedLoginAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(Login);
 
@@ -93,5 +97,13 @@ public class RecordingGitHubService : IGitHubService
     }
 
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        if (ThrowOnMarkPrReadyForReview is not null)
+        {
+            throw ThrowOnMarkPrReadyForReview;
+        }
+
+        MarkedReadyForReview.Add(prNumber);
+        return Task.CompletedTask;
+    }
 }

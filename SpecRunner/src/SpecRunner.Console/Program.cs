@@ -35,6 +35,7 @@ builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnec
 builder.Services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
 builder.Services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
 builder.Services.AddSingleton<IUpdateWorkflowRunner, UpdateWorkflowRunner>();
+builder.Services.AddSingleton<IFinalizeWorkflowRunner, FinalizeWorkflowRunner>();
 builder.Services.AddSingleton<IStateStore>(sp =>
 {
     var options = sp.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
@@ -76,8 +77,9 @@ using var sigTermRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTE
 var proposeWorkflowRunner = host.Services.GetRequiredService<IProposeWorkflowRunner>();
 var implementWorkflowRunner = host.Services.GetRequiredService<IImplementWorkflowRunner>();
 var updateWorkflowRunner = host.Services.GetRequiredService<IUpdateWorkflowRunner>();
+var finalizeWorkflowRunner = host.Services.GetRequiredService<IFinalizeWorkflowRunner>();
 var options = host.Services.GetRequiredService<IOptions<SpecRunnerOptions>>().Value;
 
-await PollingLoop.RunAsync(proposeWorkflowRunner, implementWorkflowRunner, updateWorkflowRunner, options.PollingInterval, shutdownCts.Token, logger);
+await PollingLoop.RunAsync(proposeWorkflowRunner, implementWorkflowRunner, updateWorkflowRunner, finalizeWorkflowRunner, options.PollingInterval, shutdownCts.Token, logger);
 
 return 0;

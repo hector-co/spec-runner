@@ -207,8 +207,38 @@ public class GitHubService : IGitHubService
             cancellationToken).ConfigureAwait(false);
     }
 
-    public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var prResponse = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}", null, cancellationToken).ConfigureAwait(false);
+        var prDocument = await ParseJsonAsync(prResponse, cancellationToken).ConfigureAwait(false);
+        var nodeId = prDocument.RootElement.TryGetProperty("node_id", out var nodeIdElement) ? nodeIdElement.GetString() : null;
+
+        if (string.IsNullOrEmpty(nodeId))
+        {
+            throw new GitHubApiException($"GitHub pull request #{prNumber} response did not include a node_id.");
+        }
+
+        var mutation = new
+        {
+            query = "mutation($pullRequestId: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) { pullRequest { id } } }",
+            variables = new { pullRequestId = nodeId }
+        };
+
+        using var response = await SendAsync(HttpMethod.Post, "https://api.github.com/graphql", mutation, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        if (document.RootElement.TryGetProperty("errors", out var errorsElement)
+            && errorsElement.ValueKind == JsonValueKind.Array
+            && errorsElement.GetArrayLength() > 0)
+        {
+            var message = errorsElement[0].TryGetProperty("message", out var messageElement)
+                ? messageElement.GetString()
+                : "unknown GraphQL error";
+            throw new GitHubApiException($"GitHub GraphQL mutation markPullRequestReadyForReview failed for PR #{prNumber}: {message}");
+        }
+    }
 
     private async Task<IReadOnlyList<GitHubIssueComment>> ListIssueCommentsAsync(string owner, string repo, int issueNumber, CancellationToken cancellationToken)
     {
