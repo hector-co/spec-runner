@@ -158,14 +158,14 @@ public class UpdateWorkflowRunnerTests : IDisposable
     public async Task SuccessfulRunRefreshesBranchCommitsPushesAndUpdatesState()
     {
         var (runner, git, gitHub, cliFactory, stateStore) = CreateRunner();
-        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/update the export button must also support CSV") };
 
         await runner.RunOnceAsync();
 
         Assert.Equal(
-            new[] { "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:updating specs for #45", "Push:feature/45" },
+            new[] { "ResetHard:HEAD", "Fetch:feature/45", "SwitchBranch:feature/45", "ResetHard:origin/feature/45", "Commit:updating specs for #45", "Push:feature/45" },
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
@@ -187,6 +187,21 @@ public class UpdateWorkflowRunnerTests : IDisposable
         var comment = Assert.Single(tracked!.Comments);
         Assert.Equal(CommentStatus.Done, comment.Status);
         Assert.Equal(CommentKind.PrIssueComment, comment.CommentKind);
+    }
+
+    [Fact]
+    public async Task TrackedBranchNameIsUsedEvenWhenItDiffersFromPrHeadBranch()
+    {
+        var (runner, git, gitHub, _, stateStore) = CreateRunner();
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45-2" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/update") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal(
+            new[] { "ResetHard:HEAD", "Fetch:feature/45-2", "SwitchBranch:feature/45-2", "ResetHard:origin/feature/45-2", "Commit:updating specs for #45", "Push:feature/45-2" },
+            git.Calls);
     }
 
     [Fact]

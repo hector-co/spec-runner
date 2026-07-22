@@ -23,7 +23,7 @@ public class SqliteStateStore : IStateStore
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         const string sql = """
-            SELECT Id, IssueNumber, SpecName, PrNumber, CreatedAtUtc, UpdatedAtUtc
+            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc
             FROM TrackedIssues
             WHERE IssueNumber = $value
             """;
@@ -34,7 +34,7 @@ public class SqliteStateStore : IStateStore
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         const string sql = """
-            SELECT Id, IssueNumber, SpecName, PrNumber, CreatedAtUtc, UpdatedAtUtc
+            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc
             FROM TrackedIssues
             WHERE PrNumber = $value
             """;
@@ -45,7 +45,7 @@ public class SqliteStateStore : IStateStore
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         const string sql = """
-            SELECT ti.Id, ti.IssueNumber, ti.SpecName, ti.PrNumber, ti.CreatedAtUtc, ti.UpdatedAtUtc
+            SELECT ti.Id, ti.IssueNumber, ti.SpecName, ti.BranchName, ti.PrNumber, ti.CreatedAtUtc, ti.UpdatedAtUtc
             FROM TrackedIssues ti
             INNER JOIN TrackedComments tc ON tc.TrackedIssueId = ti.Id
             WHERE tc.CommentId = $value
@@ -59,9 +59,11 @@ public class SqliteStateStore : IStateStore
         var now = DateTimeOffset.UtcNow;
 
         const string sql = """
-            INSERT INTO TrackedIssues (IssueNumber, SpecName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
-            VALUES ($issueNumber, $specName, $prNumber, $now, $now)
+            INSERT INTO TrackedIssues (IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
+            VALUES ($issueNumber, $specName, $branchName, $prNumber, $now, $now)
             ON CONFLICT(IssueNumber) DO UPDATE SET
+                SpecName = excluded.SpecName,
+                BranchName = excluded.BranchName,
                 PrNumber = excluded.PrNumber,
                 UpdatedAtUtc = excluded.UpdatedAtUtc
             """;
@@ -71,13 +73,14 @@ public class SqliteStateStore : IStateStore
             command.CommandText = sql;
             command.Parameters.AddWithValue("$issueNumber", issue.IssueNumber);
             command.Parameters.AddWithValue("$specName", issue.SpecName);
+            command.Parameters.AddWithValue("$branchName", issue.BranchName);
             command.Parameters.AddWithValue("$prNumber", (object?)issue.PrNumber ?? DBNull.Value);
             command.Parameters.AddWithValue("$now", now.ToString("O"));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
         const string selectSql = """
-            SELECT Id, IssueNumber, SpecName, PrNumber, CreatedAtUtc, UpdatedAtUtc
+            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc
             FROM TrackedIssues
             WHERE IssueNumber = $value
             """;
@@ -146,6 +149,7 @@ public class SqliteStateStore : IStateStore
                 Id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 IssueNumber   INTEGER NOT NULL UNIQUE,
                 SpecName      TEXT    NOT NULL,
+                BranchName    TEXT    NOT NULL DEFAULT '',
                 PrNumber      INTEGER NULL,
                 CreatedAtUtc  TEXT    NOT NULL,
                 UpdatedAtUtc  TEXT    NOT NULL
@@ -169,6 +173,25 @@ public class SqliteStateStore : IStateStore
             """;
 
         await ExecuteNonQueryAsync(connection, sql, cancellationToken);
+        await EnsureBranchNameColumnAsync(connection, cancellationToken);
+    }
+
+    private static async Task EnsureBranchNameColumnAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('TrackedIssues') WHERE name = 'BranchName'";
+            var columnCount = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+            if (columnCount > 0)
+            {
+                return;
+            }
+        }
+
+        await ExecuteNonQueryAsync(
+            connection,
+            "ALTER TABLE TrackedIssues ADD COLUMN BranchName TEXT NOT NULL DEFAULT ''",
+            cancellationToken);
     }
 
     private static async Task ExecuteNonQueryAsync(SqliteConnection connection, string sql, CancellationToken cancellationToken)
@@ -255,12 +278,14 @@ public class SqliteStateStore : IStateStore
     {
         var issueNumber = reader.GetInt32(1);
         var specName = reader.GetString(2);
-        var prNumber = reader.IsDBNull(3) ? (int?)null : reader.GetInt32(3);
-        var createdAtUtc = DateTimeOffset.Parse(reader.GetString(4));
-        var updatedAtUtc = DateTimeOffset.Parse(reader.GetString(5));
+        var branchName = reader.GetString(3);
+        var prNumber = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4);
+        var createdAtUtc = DateTimeOffset.Parse(reader.GetString(5));
+        var updatedAtUtc = DateTimeOffset.Parse(reader.GetString(6));
 
         return new TrackedIssue(issueNumber, specName)
         {
+            BranchName = branchName,
             PrNumber = prNumber,
             CreatedAtUtc = createdAtUtc,
             UpdatedAtUtc = updatedAtUtc

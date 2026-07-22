@@ -143,7 +143,12 @@ public class ProposeWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         Assert.Equal(
-            new[] { "Pull", "ResetHard:main", "CreateBranch:feature/45", "SwitchBranch:feature/45", "Commit:adding specs for #45", "Push:feature/45" },
+            new[]
+            {
+                "ResetHard:HEAD", "SwitchBranch:main", "Pull",
+                "BranchExists:feature/45", "CreateBranch:feature/45", "SwitchBranch:feature/45",
+                "Commit:adding specs for #45", "Push:feature/45"
+            },
             git.Calls);
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
@@ -168,8 +173,56 @@ public class ProposeWorkflowRunnerTests : IDisposable
         Assert.NotNull(tracked);
         Assert.Equal(12, tracked!.PrNumber);
         Assert.Equal("feat-45-add-login-page", tracked.SpecName);
+        Assert.Equal("feature/45", tracked.BranchName);
         var comment = Assert.Single(tracked.Comments);
         Assert.Equal(CommentStatus.Done, comment.Status);
+    }
+
+    [Fact]
+    public async Task CollidingBranchNameGetsSuffixed()
+    {
+        var (runner, git, gitHub, _, stateStore, tasksFileReader, _) = CreateRunner();
+        gitHub.NextPrNumber = 12;
+        git.BranchExistsResults["feature/45"] = true;
+        tasksFileReader.CurrentContentBySpecName["feat-45-add-login-page"] = "## 1. Tasks\n- [ ] 1.1 Do the thing";
+        gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, "/propose")));
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal(
+            new[]
+            {
+                "ResetHard:HEAD", "SwitchBranch:main", "Pull",
+                "BranchExists:feature/45", "BranchExists:feature/45-2", "CreateBranch:feature/45-2", "SwitchBranch:feature/45-2",
+                "Commit:adding specs for #45", "Push:feature/45-2"
+            },
+            git.Calls);
+
+        var pr = Assert.Single(gitHub.CreatedDraftPrs);
+        Assert.Equal("feature/45-2", pr.HeadBranch);
+
+        var tracked = await stateStore.FindByIssueNumberAsync(45);
+        Assert.NotNull(tracked);
+        Assert.Equal("feature/45-2", tracked!.BranchName);
+    }
+
+    [Fact]
+    public async Task BranchNameIsPersistedBeforeCliAgentSessionStarts()
+    {
+        TrackedIssue? trackedAtSessionStart = null;
+        var probeStore = new SqliteStateStore(_stateFilePath);
+
+        var (runner, _, gitHub, _, _, _, _) = CreateRunner(
+            sessionFactory: () => new ProbingCliAgentSession(async () =>
+            {
+                trackedAtSessionStart = await probeStore.FindByIssueNumberAsync(45);
+            }));
+        gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, "/propose")));
+
+        await runner.RunOnceAsync();
+
+        Assert.NotNull(trackedAtSessionStart);
+        Assert.Equal("feature/45", trackedAtSessionStart!.BranchName);
     }
 
     [Fact]
@@ -319,6 +372,45 @@ public class ProposeWorkflowRunnerTests : IDisposable
                 _current--;
             }
         }
+    }
+
+    private sealed class ProbingCliAgentSession : ICliAgentSession
+    {
+        private readonly Func<Task> _onStart;
+
+        public ProbingCliAgentSession(Func<Task> onStart)
+        {
+            _onStart = onStart;
+        }
+
+        public CliAgentSessionState State { get; private set; } = CliAgentSessionState.NotStarted;
+
+        public async Task StartAsync(string initialPrompt, CancellationToken cancellationToken = default)
+        {
+            await _onStart().ConfigureAwait(false);
+            State = CliAgentSessionState.Running;
+        }
+
+        public async IAsyncEnumerable<CliAgentEvent> ReadEventsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            State = CliAgentSessionState.Completed;
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public Task SendCommandAsync(string text, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task CloseInputAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task CancelCurrentRequestAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            State = CliAgentSessionState.Stopped;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class TrackingCliAgentSession : ICliAgentSession

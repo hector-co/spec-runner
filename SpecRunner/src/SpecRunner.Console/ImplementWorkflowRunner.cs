@@ -113,9 +113,10 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
                 return;
             }
 
-            await _git.FetchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.SwitchBranchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
+            await _git.FetchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.SwitchBranchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync($"origin/{trackedIssue.BranchName}", timeoutCts.Token).ConfigureAwait(false);
 
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "apply",
@@ -141,7 +142,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             }
 
             await _git.CommitAsync($"applying specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
-            await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
 
             var tasksContent = await _tasksFileReader.ReadCurrentAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
             if (tasksContent is not null)

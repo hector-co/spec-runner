@@ -14,6 +14,10 @@ public class FakeGitService : IGitService
 
     public Task SwitchBranchAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public bool BranchExistsResult { get; set; } = false;
+
+    public Task<bool> BranchExistsAsync(string branchName, CancellationToken cancellationToken = default) => Task.FromResult(BranchExistsResult);
+
     public Task CommitAsync(string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task PushAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;

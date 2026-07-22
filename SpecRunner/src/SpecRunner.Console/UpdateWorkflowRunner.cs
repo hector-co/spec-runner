@@ -110,9 +110,10 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
                 return;
             }
 
-            await _git.FetchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.SwitchBranchAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
-            await _git.ResetHardAsync($"origin/{comment.PrHeadBranch}", timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
+            await _git.FetchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.SwitchBranchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            await _git.ResetHardAsync($"origin/{trackedIssue.BranchName}", timeoutCts.Token).ConfigureAwait(false);
 
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "update",
@@ -138,7 +139,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
             }
 
             await _git.CommitAsync($"updating specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
-            await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
         }

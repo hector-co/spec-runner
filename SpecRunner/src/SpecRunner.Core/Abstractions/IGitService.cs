@@ -12,6 +12,8 @@ public interface IGitService
 
     Task SwitchBranchAsync(string branchName, CancellationToken cancellationToken = default);
 
+    Task<bool> BranchExistsAsync(string branchName, CancellationToken cancellationToken = default);
+
     Task CommitAsync(string message, CancellationToken cancellationToken = default);
 
     Task PushAsync(string branchName, CancellationToken cancellationToken = default);
