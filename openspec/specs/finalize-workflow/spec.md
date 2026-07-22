@@ -166,8 +166,8 @@ a new branch or a new pull request, since the PR already exists.
 
 #### Scenario: Missing archived tasks.md still appends the closing link
 - **WHEN** the CLI agent session for a tracked PR with issue number `45`
-  reaches state `Completed` but no archived `tasks.md` can be found for the
-  resolved spec name
+  reaches state `Completed` but no archived `tasks.md` can be found for
+  the resolved spec name
 - **THEN** PR `12`'s description SHALL still be updated to end with
   `"Closes #45"`, and the PR SHALL still be marked ready for review
 
