@@ -31,10 +31,22 @@ public class GitService : IGitService
     }
 
     public Task CreateBranchAsync(string branchName, CancellationToken cancellationToken = default)
-        => RunGitAsync(cancellationToken, "branch", "-f", branchName);
+        => RunGitAsync(cancellationToken, "branch", branchName);
 
     public Task SwitchBranchAsync(string branchName, CancellationToken cancellationToken = default)
         => RunGitAsync(cancellationToken, "checkout", branchName);
+
+    public async Task<bool> BranchExistsAsync(string branchName, CancellationToken cancellationToken = default)
+    {
+        var localExitCode = await RunGitAllowingFailureAsync(cancellationToken, "show-ref", "--verify", "--quiet", $"refs/heads/{branchName}").ConfigureAwait(false);
+        if (localExitCode == 0)
+        {
+            return true;
+        }
+
+        var remoteExitCode = await RunGitAllowingFailureAsync(cancellationToken, "ls-remote", "--exit-code", "--heads", "origin", branchName).ConfigureAwait(false);
+        return remoteExitCode == 0;
+    }
 
     public async Task CommitAsync(string message, CancellationToken cancellationToken = default)
     {
@@ -46,6 +58,22 @@ public class GitService : IGitService
         => RunGitAsync(cancellationToken, "push", "--set-upstream", "origin", branchName);
 
     private async Task RunGitAsync(CancellationToken cancellationToken, params string[] arguments)
+    {
+        var (exitCode, stdErr) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
+
+        if (exitCode != 0)
+        {
+            throw new GitCommandException($"git {string.Join(' ', arguments)}", exitCode, stdErr);
+        }
+    }
+
+    private async Task<int> RunGitAllowingFailureAsync(CancellationToken cancellationToken, params string[] arguments)
+    {
+        var (exitCode, _) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
+        return exitCode;
+    }
+
+    private async Task<(int ExitCode, string StdErr)> RunGitCoreAsync(CancellationToken cancellationToken, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -73,9 +101,6 @@ public class GitService : IGitService
         var stdErr = await stdErrTask.ConfigureAwait(false);
         await stdOutTask.ConfigureAwait(false);
 
-        if (process.ExitCode != 0)
-        {
-            throw new GitCommandException($"git {string.Join(' ', arguments)}", process.ExitCode, stdErr);
-        }
+        return (process.ExitCode, stdErr);
     }
 }

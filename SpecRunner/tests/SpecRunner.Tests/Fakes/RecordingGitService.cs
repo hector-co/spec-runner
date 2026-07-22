@@ -8,6 +8,8 @@ public class RecordingGitService : IGitService
 
     public Exception? ThrowOnCommit { get; set; }
 
+    public Dictionary<string, bool> BranchExistsResults { get; } = new();
+
     public Task PullAsync(CancellationToken cancellationToken = default)
     {
         Calls.Add("Pull");
@@ -36,6 +38,12 @@ public class RecordingGitService : IGitService
     {
         Calls.Add($"SwitchBranch:{branchName}");
         return Task.CompletedTask;
+    }
+
+    public Task<bool> BranchExistsAsync(string branchName, CancellationToken cancellationToken = default)
+    {
+        Calls.Add($"BranchExists:{branchName}");
+        return Task.FromResult(BranchExistsResults.GetValueOrDefault(branchName, false));
     }
 
     public Task CommitAsync(string message, CancellationToken cancellationToken = default)

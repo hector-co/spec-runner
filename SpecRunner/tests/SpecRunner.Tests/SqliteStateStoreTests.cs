@@ -31,7 +31,7 @@ public class SqliteStateStoreTests : IDisposable
     public async Task UpsertThenFindByIssueNumberRoundTripsTrackedIssue()
     {
         var store = new SqliteStateStore(_filePath);
-        var issue = new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 };
+        var issue = new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" };
 
         await store.UpsertTrackedIssueAsync(issue);
         var found = await store.FindByIssueNumberAsync(45);
@@ -39,6 +39,7 @@ public class SqliteStateStoreTests : IDisposable
         Assert.NotNull(found);
         Assert.Equal(45, found!.IssueNumber);
         Assert.Equal("45-add-login-page", found.SpecName);
+        Assert.Equal("feature/45", found.BranchName);
         Assert.Equal(12, found.PrNumber);
         Assert.Empty(found.Comments);
     }
@@ -84,6 +85,61 @@ public class SqliteStateStoreTests : IDisposable
         var found = await store.FindByIssueNumberAsync(45);
         Assert.Equal(12, found!.PrNumber);
         Assert.True(found.UpdatedAtUtc >= found.CreatedAtUtc);
+    }
+
+    [Fact]
+    public async Task UpsertingExistingTrackedIssueUpdatesSpecNameAndBranchName()
+    {
+        var store = new SqliteStateStore(_filePath);
+        await store.UpsertTrackedIssueAsync(new TrackedIssue(45, "feat-45-add-login-page") { BranchName = "feature/45" });
+
+        var updated = await store.UpsertTrackedIssueAsync(
+            new TrackedIssue(45, "45-add-login-page") { BranchName = "feature/45-2" });
+
+        Assert.Equal("45-add-login-page", updated.SpecName);
+        Assert.Equal("feature/45-2", updated.BranchName);
+        var found = await store.FindByIssueNumberAsync(45);
+        Assert.Equal("45-add-login-page", found!.SpecName);
+        Assert.Equal("feature/45-2", found.BranchName);
+    }
+
+    [Fact]
+    public async Task PreMigrationDatabaseFileWithoutBranchNameColumnIsUpgradedInPlace()
+    {
+        Directory.CreateDirectory(_tempDirectory);
+        var connectionString = new SqliteConnectionStringBuilder { DataSource = _filePath }.ToString();
+        await using (var connection = new SqliteConnection(connectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE TrackedIssues (
+                    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    IssueNumber   INTEGER NOT NULL UNIQUE,
+                    SpecName      TEXT    NOT NULL,
+                    PrNumber      INTEGER NULL,
+                    CreatedAtUtc  TEXT    NOT NULL,
+                    UpdatedAtUtc  TEXT    NOT NULL
+                );
+
+                INSERT INTO TrackedIssues (IssueNumber, SpecName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (45, '45-add-login-page', NULL, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        SqliteConnection.ClearAllPools();
+
+        var store = new SqliteStateStore(_filePath);
+        var found = await store.FindByIssueNumberAsync(45);
+
+        Assert.NotNull(found);
+        Assert.Equal("45-add-login-page", found!.SpecName);
+        Assert.Equal(string.Empty, found.BranchName);
+
+        var updated = await store.UpsertTrackedIssueAsync(
+            new TrackedIssue(45, "45-add-login-page") { BranchName = "feature/45" });
+        Assert.Equal("feature/45", updated.BranchName);
     }
 
     [Fact]

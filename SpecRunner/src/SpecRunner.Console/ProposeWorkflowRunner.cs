@@ -110,14 +110,26 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 return;
             }
 
+            await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
+            await _git.SwitchBranchAsync(_options.BaseBranchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.PullAsync(timeoutCts.Token).ConfigureAwait(false);
-            await _git.ResetHardAsync(_options.BaseBranchName, timeoutCts.Token).ConfigureAwait(false);
 
             var branchName = $"feature/{comment.IssueNumber}";
+            var suffix = 2;
+            while (await _git.BranchExistsAsync(branchName, timeoutCts.Token).ConfigureAwait(false))
+            {
+                branchName = $"feature/{comment.IssueNumber}-{suffix}";
+                suffix++;
+            }
+
             await _git.CreateBranchAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.SwitchBranchAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
 
             var specName = _specNameResolver.Resolve(comment.IssueNumber, comment.IssueTitle);
+
+            await _stateStore.UpsertTrackedIssueAsync(
+                new TrackedIssue(comment.IssueNumber, specName) { BranchName = branchName },
+                timeoutCts.Token).ConfigureAwait(false);
 
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "propose",
@@ -156,7 +168,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 _options.BaseBranchName,
                 timeoutCts.Token).ConfigureAwait(false);
 
-            await ReportSuccessAsync(comment, specName, prNumber, timeoutCts.Token).ConfigureAwait(false);
+            await ReportSuccessAsync(comment, specName, branchName, prNumber, timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
@@ -189,12 +201,12 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "rocket", cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task ReportSuccessAsync(EligibleProposeComment comment, string specName, int prNumber, CancellationToken cancellationToken)
+    private async Task ReportSuccessAsync(EligibleProposeComment comment, string specName, string branchName, int prNumber, CancellationToken cancellationToken)
     {
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "rocket", cancellationToken).ConfigureAwait(false);
         await _gitHub.CreateIssueCommentAsync(comment.IssueNumber, $"Created Draft PR #{prNumber} for this issue.", cancellationToken).ConfigureAwait(false);
 
-        await _stateStore.UpsertTrackedIssueAsync(new TrackedIssue(comment.IssueNumber, specName) { PrNumber = prNumber }, cancellationToken).ConfigureAwait(false);
+        await _stateStore.UpsertTrackedIssueAsync(new TrackedIssue(comment.IssueNumber, specName) { BranchName = branchName, PrNumber = prNumber }, cancellationToken).ConfigureAwait(false);
         await _stateStore.UpsertCommentAsync(
             comment.IssueNumber,
             new TrackedComment(comment.CommentId, CommentKind.IssueComment, CommentStatus.Done),

@@ -113,6 +113,53 @@ public class GitServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task BranchExistsAsyncReturnsTrueForExistingLocalBranch()
+    {
+        await _gitService.CreateBranchAsync("feature/45");
+
+        Assert.True(await _gitService.BranchExistsAsync("feature/45"));
+    }
+
+    [Fact]
+    public async Task BranchExistsAsyncReturnsTrueForRemoteOnlyBranch()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "feature/45");
+        File.WriteAllText(Path.Combine(_peerPath, "from-peer.txt"), "peer change");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "peer commit");
+        RunGit(_peerPath, "push", "origin", "feature/45");
+
+        Assert.True(await _gitService.BranchExistsAsync("feature/45"));
+    }
+
+    [Fact]
+    public async Task BranchExistsAsyncReturnsFalseForUnusedBranchName()
+    {
+        Assert.False(await _gitService.BranchExistsAsync("feature/does-not-exist"));
+    }
+
+    [Fact]
+    public async Task CreateBranchAsyncFailsInsteadOfOverwritingExistingLocalBranch()
+    {
+        await _gitService.CreateBranchAsync("feature/45");
+        var originalTip = RunGitCapture(_localPath, "rev-parse", "feature/45").Trim();
+
+        File.WriteAllText(Path.Combine(_localPath, "new-file.txt"), "content");
+        RunGit(_localPath, "add", "-A");
+        RunGit(_localPath, "commit", "-m", "advance HEAD past feature/45");
+
+        var exception = await Assert.ThrowsAsync<GitCommandException>(
+            () => _gitService.CreateBranchAsync("feature/45"));
+
+        Assert.NotEmpty(exception.StandardError);
+        Assert.NotEqual(0, exception.ExitCode);
+        Assert.Equal(originalTip, RunGitCapture(_localPath, "rev-parse", "feature/45").Trim());
+    }
+
+    [Fact]
     public async Task CommitAsyncStagesAndCommitsPendingChanges()
     {
         File.WriteAllText(Path.Combine(_localPath, "new-file.txt"), "content");
