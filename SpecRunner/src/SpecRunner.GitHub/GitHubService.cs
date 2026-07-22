@@ -240,6 +240,17 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(
+            HttpMethod.Patch,
+            $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}",
+            new { body },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<IReadOnlyList<GitHubIssueComment>> ListIssueCommentsAsync(string owner, string repo, int issueNumber, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/issues/{issueNumber}/comments?per_page=100", null, cancellationToken).ConfigureAwait(false);

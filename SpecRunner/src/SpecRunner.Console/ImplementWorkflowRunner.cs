@@ -15,6 +15,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
     private readonly IGitService _git;
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
+    private readonly ITasksFileReader _tasksFileReader;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<ImplementWorkflowRunner> _logger;
 
@@ -23,6 +24,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         IGitService git,
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
+        ITasksFileReader tasksFileReader,
         IOptions<SpecRunnerOptions> options,
         ILogger<ImplementWorkflowRunner> logger)
     {
@@ -30,6 +32,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         _git = git;
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
+        _tasksFileReader = tasksFileReader;
         _options = options.Value;
         _logger = logger;
     }
@@ -127,6 +130,12 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
 
             await _git.CommitAsync($"applying specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
             await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+
+            var tasksContent = await _tasksFileReader.ReadCurrentAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
+            if (tasksContent is not null)
+            {
+                await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, tasksContent, timeoutCts.Token).ConfigureAwait(false);
+            }
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
         }

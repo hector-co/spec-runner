@@ -15,6 +15,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
     private readonly IGitService _git;
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
+    private readonly ITasksFileReader _tasksFileReader;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<FinalizeWorkflowRunner> _logger;
 
@@ -23,6 +24,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         IGitService git,
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
+        ITasksFileReader tasksFileReader,
         IOptions<SpecRunnerOptions> options,
         ILogger<FinalizeWorkflowRunner> logger)
     {
@@ -30,6 +32,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         _git = git;
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
+        _tasksFileReader = tasksFileReader;
         _options = options.Value;
         _logger = logger;
     }
@@ -129,6 +132,11 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
 
             await _git.CommitAsync($"finalizing specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
             await _git.PushAsync(comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+
+            var archivedTasksContent = await _tasksFileReader.ReadArchivedAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
+            var finalBody = $"{archivedTasksContent ?? string.Empty}\n\nCloses #{trackedIssue.IssueNumber}";
+            await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, finalBody, timeoutCts.Token).ConfigureAwait(false);
+
             await _gitHub.MarkPrReadyForReviewAsync(comment.PrNumber, timeoutCts.Token).ConfigureAwait(false);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);

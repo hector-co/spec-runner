@@ -19,6 +19,7 @@ public class DependencyInjectionSmokeTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
+        services.AddSingleton<ITasksFileReader, FakeTasksFileReader>();
         services.AddSingleton<IGitService, FakeGitService>();
         services.AddSingleton<IGitHubService, FakeGitHubService>();
         services.AddSingleton<IStateStore>(_ => new SqliteStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.db")));
@@ -35,6 +36,7 @@ public class DependencyInjectionSmokeTests
 
         Assert.NotNull(provider.GetRequiredService<IStateStore>());
         Assert.NotNull(provider.GetRequiredService<ISpecNameResolver>());
+        Assert.NotNull(provider.GetRequiredService<ITasksFileReader>());
         Assert.NotNull(provider.GetRequiredService<IGitService>());
         Assert.NotNull(provider.GetRequiredService<IGitHubService>());
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());

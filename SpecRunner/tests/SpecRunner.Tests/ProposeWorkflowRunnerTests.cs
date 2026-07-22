@@ -31,7 +31,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
         }
     }
 
-    private (ProposeWorkflowRunner Runner, RecordingGitService Git, RecordingGitHubService GitHub, FakeCliAgentSessionFactory CliFactory, SqliteStateStore StateStore) CreateRunner(
+    private (ProposeWorkflowRunner Runner, RecordingGitService Git, RecordingGitHubService GitHub, FakeCliAgentSessionFactory CliFactory, SqliteStateStore StateStore, FakeTasksFileReader TasksFileReader) CreateRunner(
         TimeSpan? taskTimeout = null,
         Func<ICliAgentSession>? sessionFactory = null)
     {
@@ -40,14 +40,15 @@ public class ProposeWorkflowRunnerTests : IDisposable
         var cliFactory = new FakeCliAgentSessionFactory(sessionFactory ?? (() => new FakeCliAgentSession(CliAgentSessionState.Completed)));
         var stateStore = new SqliteStateStore(_stateFilePath);
         var specNameResolver = new SpecNameResolver();
+        var tasksFileReader = new FakeTasksFileReader();
         var options = Options.Create(new SpecRunnerOptions
         {
             BaseBranchName = "main",
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new ProposeWorkflowRunner(gitHub, git, stateStore, cliFactory, specNameResolver, options, NullLogger<ProposeWorkflowRunner>.Instance);
-        return (runner, git, gitHub, cliFactory, stateStore);
+        var runner = new ProposeWorkflowRunner(gitHub, git, stateStore, cliFactory, specNameResolver, tasksFileReader, options, NullLogger<ProposeWorkflowRunner>.Instance);
+        return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
     }
 
     private static GitHubIssue Issue(int number, string title, string body, params GitHubIssueComment[] comments)
@@ -63,7 +64,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [InlineData("  /propose  ")]
     public async Task EligibleCommentBodiesReceiveEyesReaction(string body)
     {
-        var (runner, _, gitHub, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _) = CreateRunner();
         gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, body)));
 
         await runner.RunOnceAsync();
@@ -78,7 +79,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [InlineData("some text mentioning /propose mid-sentence")]
     public async Task NonEligibleCommentBodiesAreIgnored(string body)
     {
-        var (runner, _, gitHub, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _) = CreateRunner();
         gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, body)));
 
         await runner.RunOnceAsync();
@@ -89,7 +90,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task CommentWithExistingBotReactionIsSkipped()
     {
-        var (runner, git, gitHub, cliFactory, _) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, _, _) = CreateRunner();
         gitHub.Issues.Add(Issue(45, "Title", "Body", Comment(9001, "/propose")));
         gitHub.Reactions[9001] = new List<GitHubReaction> { new(gitHub.Login, "rocket") };
 
@@ -103,7 +104,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task CommentWithOnlyHumanReactionIsStillProcessed()
     {
-        var (runner, _, gitHub, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _) = CreateRunner();
         gitHub.Issues.Add(Issue(45, "Title", "Body", Comment(9001, "/propose")));
         gitHub.Reactions[9001] = new List<GitHubReaction> { new("a-human", "eyes") };
 
@@ -115,7 +116,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task IssueWithExistingPrShortCircuitsWorkflow()
     {
-        var (runner, git, gitHub, cliFactory, stateStore) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, stateStore, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-title") { PrNumber = 12 });
         gitHub.Issues.Add(Issue(45, "Title", "Body", Comment(9001, "/propose")));
 
@@ -132,8 +133,9 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task SuccessfulRunCommitsPushesCreatesDraftPrAndUpdatesState()
     {
-        var (runner, git, gitHub, cliFactory, stateStore) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
         gitHub.NextPrNumber = 12;
+        tasksFileReader.CurrentContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [ ] 1.1 Do the thing";
         gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, "/propose")));
 
         await runner.RunOnceAsync();
@@ -149,6 +151,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
         var pr = Assert.Single(gitHub.CreatedDraftPrs);
         Assert.Equal("feature/45", pr.HeadBranch);
         Assert.Equal("main", pr.BaseBranch);
+        Assert.Equal("## 1. Tasks\n- [ ] 1.1 Do the thing", pr.Body);
 
         Assert.Contains((9001L, "rocket"), gitHub.AddedReactions);
         Assert.Contains(gitHub.CreatedComments, c => c.IssueNumber == 45 && c.Body == "Created Draft PR #12 for this issue.");
@@ -162,9 +165,23 @@ public class ProposeWorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task MissingTasksFileResultsInEmptyDraftPrBody()
+    {
+        var (runner, _, gitHub, _, _, _) = CreateRunner();
+        gitHub.NextPrNumber = 12;
+        gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, "/propose")));
+
+        await runner.RunOnceAsync();
+
+        var pr = Assert.Single(gitHub.CreatedDraftPrs);
+        Assert.Equal(string.Empty, pr.Body);
+        Assert.Contains(gitHub.CreatedComments, c => c.IssueNumber == 45 && c.Body == "Created Draft PR #12 for this issue.");
+    }
+
+    [Fact]
     public async Task ThrownExceptionDuringProcessingIsReportedAndProcessingContinuesToNextComment()
     {
-        var (runner, _, gitHub, cliFactory, stateStore) = CreateRunner();
+        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner();
         gitHub.ThrowOnCreateDraftPr = new InvalidOperationException("GitHub API call failed with HTTP 422: validation failed");
         gitHub.ThrowOnCreateDraftPrOnlyOnce = true;
         gitHub.Issues.Add(Issue(45, "Title A", "Body A", Comment(9001, "/propose")));
@@ -194,7 +211,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task ExceedingTaskTimeoutStopsSessionAndReportsTimeout()
     {
-        var (runner, _, gitHub, cliFactory, stateStore) = CreateRunner(
+        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner(
             taskTimeout: TimeSpan.FromMilliseconds(50),
             sessionFactory: () => new FakeCliAgentSession(CliAgentSessionState.Completed, readEventsDelay: TimeSpan.FromSeconds(5)));
         gitHub.Issues.Add(Issue(45, "Title", "Body", Comment(9001, "/propose")));
@@ -217,7 +234,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
     public async Task EligibleCommentsAreProcessedSequentiallyNotConcurrently()
     {
         var tracker = new ConcurrencyTracker();
-        var (runner, _, gitHub, cliFactory, _) = CreateRunner(
+        var (runner, _, gitHub, cliFactory, _, _) = CreateRunner(
             sessionFactory: () => new TrackingCliAgentSession(tracker, TimeSpan.FromMilliseconds(30)));
         gitHub.Issues.Add(Issue(45, "Title A", "Body A", Comment(9001, "/propose")));
         gitHub.Issues.Add(Issue(46, "Title B", "Body B", Comment(9002, "/propose")));

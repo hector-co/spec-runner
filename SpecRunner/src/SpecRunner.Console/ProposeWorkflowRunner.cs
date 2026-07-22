@@ -16,6 +16,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
     private readonly ISpecNameResolver _specNameResolver;
+    private readonly ITasksFileReader _tasksFileReader;
     private readonly SpecRunnerOptions _options;
     private readonly ILogger<ProposeWorkflowRunner> _logger;
 
@@ -25,6 +26,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
         ISpecNameResolver specNameResolver,
+        ITasksFileReader tasksFileReader,
         IOptions<SpecRunnerOptions> options,
         ILogger<ProposeWorkflowRunner> logger)
     {
@@ -33,6 +35,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
         _specNameResolver = specNameResolver;
+        _tasksFileReader = tasksFileReader;
         _options = options.Value;
         _logger = logger;
     }
@@ -127,9 +130,11 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
             await _git.CommitAsync($"adding specs for #{comment.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
             await _git.PushAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
 
+            var tasksContent = await _tasksFileReader.ReadCurrentAsync(specName, timeoutCts.Token).ConfigureAwait(false);
+
             var prNumber = await _gitHub.CreateDraftPullRequestAsync(
                 $"Proposal for #{comment.IssueNumber}: {comment.IssueTitle}",
-                comment.IssueBody,
+                tasksContent ?? string.Empty,
                 branchName,
                 _options.BaseBranchName,
                 timeoutCts.Token).ConfigureAwait(false);
