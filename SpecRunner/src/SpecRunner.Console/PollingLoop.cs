@@ -9,6 +9,7 @@ public static class PollingLoop
         IProposeWorkflowRunner proposeWorkflowRunner,
         IImplementWorkflowRunner implementWorkflowRunner,
         IUpdateWorkflowRunner updateWorkflowRunner,
+        IFinalizeWorkflowRunner finalizeWorkflowRunner,
         TimeSpan pollingInterval,
         CancellationToken cancellationToken,
         ILogger logger)
@@ -50,6 +51,20 @@ public static class PollingLoop
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception during update-workflow scan pass");
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            try
+            {
+                await finalizeWorkflowRunner.RunOnceAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception during finalize-workflow scan pass");
             }
 
             if (cancellationToken.IsCancellationRequested)

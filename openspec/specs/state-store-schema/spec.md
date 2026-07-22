@@ -4,8 +4,9 @@
 
 TBD - defines the local state-store schema associating issues, PRs,
 comments, and specs, the persistence interface, spec name resolution, and
-the git/GitHub service contracts (implemented for the propose workflow's
-needs; remaining members are unimplemented placeholders).
+the git/GitHub service contracts (implemented for the propose, implement,
+update, and finalize workflows' needs; `CreatePullRequestAsync`
+(non-draft) remains an unimplemented placeholder).
 
 ## Requirements
 
@@ -118,14 +119,15 @@ the authenticated bot identity, listing open issues with comments,
 reading/adding comment reactions, and creating an issue comment) as
 interfaces. `SpecRunner.Git` SHALL provide a real implementation of every
 `IGitService` member (see `git-operations`). `SpecRunner.GitHub` SHALL
-provide a real implementation of the members the `propose-workflow`
-capability depends on — authenticated identity resolution, listing open
-issues with comments, reading/adding comment reactions, creating an issue
-comment, and creating a draft PR (see `github-operations`) — while
-`CreatePullRequestAsync` (non-draft), reading/writing PR comments, and
-marking a PR ready for review remain `NotImplementedException`
-placeholders until a future change that handles `/update`-style PR
-comments needs them.
+provide a real implementation of every `IGitHubService` member the
+`propose-workflow`, `implement-workflow`, `update-workflow`, and
+`finalize-workflow` capabilities depend on — authenticated identity
+resolution, listing open issues with comments, reading/adding comment
+reactions, creating an issue comment, creating a draft PR, listing open
+pull requests, reading/writing PR comments, and marking a PR ready for
+review (see `github-operations`) — while `CreatePullRequestAsync`
+(non-draft) remains a `NotImplementedException` placeholder until a
+future change needs it.
 
 #### Scenario: Git service operations perform real git operations
 - **WHEN** a method on the registered `IGitService` implementation is
@@ -135,14 +137,15 @@ comments needs them.
 
 #### Scenario: Implemented GitHub service members perform real API calls
 - **WHEN** `CreateDraftPullRequestAsync`, an issue-listing operation, a
-  comment-reaction operation, or `CreateIssueCommentAsync` is called on
-  the registered `IGitHubService` implementation
-- **THEN** it SHALL perform the corresponding GitHub REST API call rather
-  than throwing `NotImplementedException`
+  comment-reaction operation, `CreateIssueCommentAsync`, a PR-listing
+  operation, a PR-comment read/write operation, or the
+  mark-ready-for-review operation is called on the registered
+  `IGitHubService` implementation
+- **THEN** it SHALL perform the corresponding GitHub REST or GraphQL API
+  call rather than throwing `NotImplementedException`
 
 #### Scenario: Not-yet-needed GitHub service members remain placeholders
-- **WHEN** `CreatePullRequestAsync`, a PR-comment read/write operation, or
-  the mark-ready-for-review operation is called on the registered
-  `IGitHubService` implementation
+- **WHEN** `CreatePullRequestAsync` (non-draft) is called on the
+  registered `IGitHubService` implementation
 - **THEN** it SHALL still throw `NotImplementedException`, since no
   current capability depends on it yet

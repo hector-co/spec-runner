@@ -217,6 +217,49 @@ public class GitHubServiceTests
     }
 
     [Fact]
+    public async Task MarkPrReadyForReviewAsyncResolvesNodeIdAndCallsMutation()
+    {
+        HttpRequestMessage? mutationRequest = null;
+        string? mutationBody = null;
+        var service = CreateService(request =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                Assert.Equal("/repos/owner/repo/pulls/12", request.RequestUri!.AbsolutePath);
+                return JsonResponse(HttpStatusCode.OK, """{"number":12,"node_id":"PR_kwABC"}""");
+            }
+
+            mutationRequest = request;
+            mutationBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse(HttpStatusCode.OK, """{"data":{"markPullRequestReadyForReview":{"pullRequest":{"id":"PR_kwABC"}}}}""");
+        });
+
+        await service.MarkPrReadyForReviewAsync(12);
+
+        Assert.Equal("https://api.github.com/graphql", mutationRequest!.RequestUri!.ToString());
+        Assert.Contains("\"pullRequestId\":\"PR_kwABC\"", mutationBody);
+        Assert.Contains("markPullRequestReadyForReview", mutationBody);
+    }
+
+    [Fact]
+    public async Task MarkPrReadyForReviewAsyncThrowsGitHubApiExceptionOnGraphQlErrorPayload()
+    {
+        var service = CreateService(request =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                return JsonResponse(HttpStatusCode.OK, """{"number":12,"node_id":"PR_kwABC"}""");
+            }
+
+            return JsonResponse(HttpStatusCode.OK, """{"errors":[{"message":"Pull request is not in draft state"}]}""");
+        });
+
+        var exception = await Assert.ThrowsAsync<GitHubApiException>(() => service.MarkPrReadyForReviewAsync(12));
+
+        Assert.Contains("Pull request is not in draft state", exception.Message);
+    }
+
+    [Fact]
     public async Task NonSuccessResponseThrowsGitHubApiExceptionWithStatusCode()
     {
         var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)

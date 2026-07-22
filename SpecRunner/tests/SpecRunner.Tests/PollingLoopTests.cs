@@ -24,8 +24,9 @@ public class PollingLoopTests
         });
         var implementRunner = new FakeImplementWorkflowRunner(() => { });
         var updateRunner = new FakeUpdateWorkflowRunner(() => { });
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() => { });
 
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
 
         Assert.Equal(2, callCount);
     }
@@ -38,15 +39,18 @@ public class PollingLoopTests
         var proposeCallCount = 0;
         var implementCallCount = 0;
         var updateCallCount = 0;
+        var finalizeCallCount = 0;
         var proposeRunner = new FakeProposeWorkflowRunner(() => proposeCallCount++);
         var implementRunner = new FakeImplementWorkflowRunner(() => implementCallCount++);
         var updateRunner = new FakeUpdateWorkflowRunner(() => updateCallCount++);
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() => finalizeCallCount++);
 
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.FromSeconds(30), cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.FromSeconds(30), cts.Token, NullLogger.Instance);
 
         Assert.Equal(0, proposeCallCount);
         Assert.Equal(0, implementCallCount);
         Assert.Equal(0, updateCallCount);
+        Assert.Equal(0, finalizeCallCount);
     }
 
     [Fact]
@@ -61,9 +65,10 @@ public class PollingLoopTests
         });
         var implementRunner = new FakeImplementWorkflowRunner(() => { });
         var updateRunner = new FakeUpdateWorkflowRunner(() => { });
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() => { });
 
         var stopwatch = Stopwatch.StartNew();
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.FromSeconds(30), cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.FromSeconds(30), cts.Token, NullLogger.Instance);
         stopwatch.Stop();
 
         Assert.Equal(1, callCount);
@@ -77,15 +82,16 @@ public class PollingLoopTests
         var callOrder = new List<string>();
         var proposeRunner = new FakeProposeWorkflowRunner(() => callOrder.Add("propose"));
         var implementRunner = new FakeImplementWorkflowRunner(() => callOrder.Add("implement"));
-        var updateRunner = new FakeUpdateWorkflowRunner(() =>
+        var updateRunner = new FakeUpdateWorkflowRunner(() => callOrder.Add("update"));
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() =>
         {
-            callOrder.Add("update");
+            callOrder.Add("finalize");
             cts.Cancel();
         });
 
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
 
-        Assert.Equal(new[] { "propose", "implement", "update" }, callOrder);
+        Assert.Equal(new[] { "propose", "implement", "update", "finalize" }, callOrder);
     }
 
     [Fact]
@@ -96,13 +102,10 @@ public class PollingLoopTests
         var updateCallCount = 0;
         var proposeRunner = new FakeProposeWorkflowRunner(() => throw new InvalidOperationException("boom"));
         var implementRunner = new FakeImplementWorkflowRunner(() => implementCallCount++);
-        var updateRunner = new FakeUpdateWorkflowRunner(() =>
-        {
-            updateCallCount++;
-            cts.Cancel();
-        });
+        var updateRunner = new FakeUpdateWorkflowRunner(() => updateCallCount++);
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() => cts.Cancel());
 
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
 
         Assert.Equal(1, implementCallCount);
         Assert.Equal(1, updateCallCount);
@@ -115,13 +118,10 @@ public class PollingLoopTests
         var updateCallCount = 0;
         var proposeRunner = new FakeProposeWorkflowRunner(() => { });
         var implementRunner = new FakeImplementWorkflowRunner(() => throw new InvalidOperationException("boom"));
-        var updateRunner = new FakeUpdateWorkflowRunner(() =>
-        {
-            updateCallCount++;
-            cts.Cancel();
-        });
+        var updateRunner = new FakeUpdateWorkflowRunner(() => updateCallCount++);
+        var finalizeRunner = new FakeFinalizeWorkflowRunner(() => cts.Cancel());
 
-        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
+        await PollingLoop.RunAsync(proposeRunner, implementRunner, updateRunner, finalizeRunner, TimeSpan.Zero, cts.Token, NullLogger.Instance);
 
         Assert.Equal(1, updateCallCount);
     }
@@ -163,6 +163,22 @@ public class PollingLoopTests
         private readonly Action _onRun;
 
         public FakeUpdateWorkflowRunner(Action onRun)
+        {
+            _onRun = onRun;
+        }
+
+        public Task RunOnceAsync(CancellationToken cancellationToken = default)
+        {
+            _onRun();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeFinalizeWorkflowRunner : IFinalizeWorkflowRunner
+    {
+        private readonly Action _onRun;
+
+        public FakeFinalizeWorkflowRunner(Action onRun)
         {
             _onRun = onRun;
         }
