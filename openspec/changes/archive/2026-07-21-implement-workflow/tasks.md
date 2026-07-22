@@ -150,7 +150,7 @@
       succeeds with no errors.
 - [x] 8.2 Run `dotnet test SpecRunner/SpecRunner.sln` and confirm all
       tests pass. All 110 tests pass (see 6.11).
-- [ ] 8.3 If a test GitHub repository and PAT are available, manually
+- [x] 8.3 If a test GitHub repository and PAT are available, manually
       post a `/implement` comment on an open draft PR created by
       `/propose`, run `SpecRunner.Console`, and confirm: the `eyes`
       reaction appears immediately, the CLI agent runs against the PR's
