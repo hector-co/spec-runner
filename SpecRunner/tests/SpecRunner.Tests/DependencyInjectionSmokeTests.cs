@@ -28,6 +28,7 @@ public class DependencyInjectionSmokeTests
         services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
         services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
         services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
+        services.AddSingleton<IUpdateWorkflowRunner, UpdateWorkflowRunner>();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
         using var provider = services.BuildServiceProvider();
@@ -40,5 +41,6 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
         Assert.NotNull(provider.GetRequiredService<IProposeWorkflowRunner>());
         Assert.NotNull(provider.GetRequiredService<IImplementWorkflowRunner>());
+        Assert.NotNull(provider.GetRequiredService<IUpdateWorkflowRunner>());
     }
 }

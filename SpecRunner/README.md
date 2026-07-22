@@ -169,8 +169,51 @@ A successful or errored outcome on a tracked PR is also recorded in the SQLite s
 under the tracked record's issue number. An untracked PR's outcome is not recorded in the
 state store (there is no issue number to key it under) - the `confused` reaction on the
 comment itself is what prevents it from being reprocessed on the next scan pass. This
-change only handles general PR conversation comments; `/update`-style follow-up comments
-that aren't a `/implement` trigger, marking a PR ready for review, and PR review (inline
+change only handles general PR conversation comments other than the `/update` trigger
+(see below); marking a PR ready for review and PR review (inline code) comments are out
+of scope.
+
+## Update workflow
+
+After the `implement-workflow` scan pass, `SpecRunner.Console` runs an `update-workflow`
+scan pass (`IUpdateWorkflowRunner.RunOnceAsync`, implemented by `UpdateWorkflowRunner`)
+over the same set of open pull requests, letting a reviewer steer an in-flight change with
+a new requirement or piece of information without editing the OpenSpec change by hand:
+
+1. It lists open PRs and, for each, reads its general conversation comments via
+   `ReadPrCommentsAsync`, treating a comment as an eligible trigger when its body, trimmed
+   of leading/trailing whitespace, is exactly `/update` or starts with `/update` followed
+   by whitespace (so `/updated` or `/update` used mid-sentence does not trigger). The text
+   after the token (and its separating whitespace) becomes that comment's instructions.
+2. A comment already carrying an `eyes`, `+1`, or `confused` reaction from the
+   authenticated bot identity is skipped, mirroring `implement-workflow`'s own skip rule
+   (`+1` stands in for a checkmark, and `confused` is included so a permanently-failing
+   comment on an untracked PR isn't reprocessed forever).
+3. Each remaining eligible comment is processed in turn (never concurrently, and never
+   concurrently with `propose-workflow` or `implement-workflow`, since all three share the
+   one local clone). Processing starts by adding an `eyes` reaction, then resolves the PR's
+   associated spec via `IStateStore.FindByPrNumberAsync`:
+   - **Untracked PR** (no record - the PR wasn't opened by `/propose`, or its record was
+     lost): posts a reply explaining that no associated spec/change was found and adds a
+     `confused` reaction. No git operation, CLI-agent session, or state-store write
+     happens for this comment.
+   - **Tracked PR**: fetches, switches to, and hard-resets the PR's existing head branch to
+     `origin/{branch}`, then runs the CLI coding agent with a plain natural-language
+     prompt - not an `/opsx-*` slash command - of the form `Update the OpenSpec change
+     "{spec-name}" to reflect the following new requirement/information:\n{instructions}`
+     (sent as a single value wrapped in escaped double quotes, matching `propose-workflow`
+     and `implement-workflow`'s prompt-quoting convention), using the tracked record's spec
+     name. On success it commits with message `"updating specs for #{issue-number}"` (the
+     issue number from the tracked record) and pushes the existing branch - no new branch
+     or PR is created - then adds a `+1` reaction and a reply confirming the push.
+4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
+   (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
+   human-readable reply instead of a raw exception, and processing moves on to the next
+   eligible comment rather than aborting the scan pass.
+
+A successful or errored outcome on a tracked PR is also recorded in the SQLite state store
+under the tracked record's issue number, the same way `implement-workflow` records its
+outcomes. This change only handles the `/update` trigger; `/archive` and PR review (inline
 code) comments are out of scope.
 
 ## Status
@@ -185,18 +228,19 @@ output.
 
 If the status is `Connected`, the process enters a polling loop: it runs one
 `propose-workflow` scan pass to completion, then one `implement-workflow` scan pass to
-completion, waits `SpecRunnerOptions.PollingInterval`, and repeats, indefinitely - it no
-longer exits after a single pass. The two scan passes always run sequentially, never
-concurrently, since they share the same local clone. An unhandled exception from either
-scan pass is logged and does not stop the process or prevent the other scan pass from
-running that same cycle; the loop simply waits out `PollingInterval` and tries again.
-Sending `SIGINT` (Ctrl+C) or `SIGTERM` requests a graceful shutdown: an in-progress scan
-pass is allowed to finish (no scan pass is cancelled mid-flight), no further
-`propose-workflow` or `implement-workflow` pass is started, and the process then exits
-with code `0`. A shutdown signal received while waiting out `PollingInterval` ends the
-wait immediately instead of waiting out the full interval. Because the process now runs
-continuously, running it expects an external supervisor (service manager, container
-restart policy) rather than a one-shot invocation.
+completion, then one `update-workflow` scan pass to completion, waits
+`SpecRunnerOptions.PollingInterval`, and repeats, indefinitely - it no longer exits after a
+single pass. The three scan passes always run sequentially, never concurrently, since they
+share the same local clone. An unhandled exception from any scan pass is logged and does
+not stop the process or prevent the other scan passes from running that same cycle; the
+loop simply waits out `PollingInterval` and tries again. Sending `SIGINT` (Ctrl+C) or
+`SIGTERM` requests a graceful shutdown: an in-progress scan pass is allowed to finish (no
+scan pass is cancelled mid-flight), no further `propose-workflow`, `implement-workflow`, or
+`update-workflow` pass is started, and the process then exits with code `0`. A shutdown
+signal received while waiting out `PollingInterval` ends the wait immediately instead of
+waiting out the full interval. Because the process now runs continuously, running it
+expects an external supervisor (service manager, container restart policy) rather than a
+one-shot invocation.
 
 ## Logging
 
