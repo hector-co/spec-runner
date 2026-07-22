@@ -12,7 +12,7 @@ public partial class SpecNameResolver : ISpecNameResolver
         var sanitized = InvalidCharacterRegex().Replace(dashed, string.Empty);
         var collapsed = RepeatedDashRegex().Replace(sanitized, "-").Trim('-');
 
-        return $"{issueNumber}-{collapsed}";
+        return $"feat-{issueNumber}-{collapsed}";
     }
 
     [GeneratedRegex(@"\s+")]

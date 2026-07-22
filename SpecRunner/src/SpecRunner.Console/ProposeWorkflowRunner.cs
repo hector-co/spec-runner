@@ -16,6 +16,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
     private readonly IStateStore _stateStore;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
     private readonly ISpecNameResolver _specNameResolver;
+    private readonly ISpecFolderResolver _specFolderResolver;
     private readonly ITasksFileReader _tasksFileReader;
     private readonly ICommandTemplateRenderer _commandTemplateRenderer;
     private readonly SpecRunnerOptions _options;
@@ -27,6 +28,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         IStateStore stateStore,
         ICliAgentSessionFactory cliAgentSessionFactory,
         ISpecNameResolver specNameResolver,
+        ISpecFolderResolver specFolderResolver,
         ITasksFileReader tasksFileReader,
         ICommandTemplateRenderer commandTemplateRenderer,
         IOptions<SpecRunnerOptions> options,
@@ -37,6 +39,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         _stateStore = stateStore;
         _cliAgentSessionFactory = cliAgentSessionFactory;
         _specNameResolver = specNameResolver;
+        _specFolderResolver = specFolderResolver;
         _tasksFileReader = tasksFileReader;
         _commandTemplateRenderer = commandTemplateRenderer;
         _options = options.Value;
@@ -138,6 +141,8 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
             {
                 throw new InvalidOperationException($"CLI agent session for issue #{comment.IssueNumber} ended in state {session.State}.");
             }
+
+            specName = await _specFolderResolver.ResolveAsync(specName, comment.IssueNumber, timeoutCts.Token).ConfigureAwait(false);
 
             await _git.CommitAsync($"adding specs for #{comment.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
             await _git.PushAsync(branchName, timeoutCts.Token).ConfigureAwait(false);

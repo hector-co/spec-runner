@@ -20,6 +20,7 @@ public class DependencyInjectionSmokeTests
         var services = new ServiceCollection();
         services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
         services.AddSingleton<ITasksFileReader, FakeTasksFileReader>();
+        services.AddSingleton<ISpecFolderResolver, FakeSpecFolderResolver>();
         services.AddSingleton<ICommandTemplateRenderer, CommandTemplateRenderer>();
         services.AddSingleton<IGitService, FakeGitService>();
         services.AddSingleton<IGitHubService, FakeGitHubService>();
