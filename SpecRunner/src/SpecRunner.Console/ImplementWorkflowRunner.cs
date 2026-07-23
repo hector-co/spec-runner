@@ -53,7 +53,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             {
                 if (TryGetInstructions(comment.Body, out var instructions))
                 {
-                    eligibleComments.Add(new EligibleImplementComment(pr.Number, pr.HeadBranch, comment.CommentId, instructions));
+                    eligibleComments.Add(new EligibleImplementComment(pr.Number, pr.HeadBranch, pr.Title, comment.CommentId, instructions));
                 }
             }
         }
@@ -149,6 +149,12 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             {
                 await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, tasksContent, timeoutCts.Token).ConfigureAwait(false);
             }
+
+            var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber);
+            await _gitHub.UpdatePullRequestTitleAsync(
+                comment.PrNumber,
+                $"Implementations for #{trackedIssue.IssueNumber}: {issueName}",
+                timeoutCts.Token).ConfigureAwait(false);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
         }

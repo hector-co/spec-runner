@@ -162,7 +162,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
         var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         tasksFileReader.ArchivedContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [x] 1.1 Done";
-        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45", title: "Implementations for #45: Add login page"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize the export button was implemented under a different name") };
 
         await runner.RunOnceAsync();
@@ -186,6 +186,10 @@ public class FinalizeWorkflowRunnerTests : IDisposable
         Assert.Contains((9001L, "+1"), gitHub.AddedReactions);
         Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12);
         Assert.Contains((12, "## 1. Tasks\n- [x] 1.1 Done\n\nCloses #45"), gitHub.UpdatedPullRequestDescriptions);
+        Assert.Contains((12, "#45: Add login page"), gitHub.UpdatedPullRequestTitles);
+        Assert.Equal(
+            new[] { "UpdatePullRequestDescription", "UpdatePullRequestTitle", "MarkPrReadyForReview" },
+            gitHub.PrMutationCallOrder);
 
         var tracked = await stateStore.FindByIssueNumberAsync(45);
         Assert.NotNull(tracked);

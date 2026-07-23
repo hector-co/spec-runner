@@ -27,4 +27,6 @@ public interface IGitHubService
     Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default);
 
     Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default);
+
+    Task UpdatePullRequestTitleAsync(int prNumber, string title, CancellationToken cancellationToken = default);
 }

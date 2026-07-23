@@ -37,6 +37,12 @@ public class RecordingGitHubService : IGitHubService
 
     public Exception? ThrowOnUpdatePullRequestDescription { get; set; }
 
+    public List<(int PrNumber, string Title)> UpdatedPullRequestTitles { get; } = new();
+
+    public Exception? ThrowOnUpdatePullRequestTitle { get; set; }
+
+    public List<string> PrMutationCallOrder { get; } = new();
+
     public Task<string> GetAuthenticatedLoginAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(Login);
 
@@ -102,6 +108,8 @@ public class RecordingGitHubService : IGitHubService
 
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
     {
+        PrMutationCallOrder.Add("MarkPrReadyForReview");
+
         if (ThrowOnMarkPrReadyForReview is not null)
         {
             throw ThrowOnMarkPrReadyForReview;
@@ -113,12 +121,27 @@ public class RecordingGitHubService : IGitHubService
 
     public Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default)
     {
+        PrMutationCallOrder.Add("UpdatePullRequestDescription");
+
         if (ThrowOnUpdatePullRequestDescription is not null)
         {
             throw ThrowOnUpdatePullRequestDescription;
         }
 
         UpdatedPullRequestDescriptions.Add((prNumber, body));
+        return Task.CompletedTask;
+    }
+
+    public Task UpdatePullRequestTitleAsync(int prNumber, string title, CancellationToken cancellationToken = default)
+    {
+        PrMutationCallOrder.Add("UpdatePullRequestTitle");
+
+        if (ThrowOnUpdatePullRequestTitle is not null)
+        {
+            throw ThrowOnUpdatePullRequestTitle;
+        }
+
+        UpdatedPullRequestTitles.Add((prNumber, title));
         return Task.CompletedTask;
     }
 }

@@ -53,7 +53,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             {
                 if (TryGetInstructions(comment.Body, out var instructions))
                 {
-                    eligibleComments.Add(new EligibleFinalizeComment(pr.Number, pr.HeadBranch, comment.CommentId, instructions));
+                    eligibleComments.Add(new EligibleFinalizeComment(pr.Number, pr.HeadBranch, pr.Title, comment.CommentId, instructions));
                 }
             }
         }
@@ -147,6 +147,12 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             var archivedTasksContent = await _tasksFileReader.ReadArchivedAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
             var finalBody = $"{archivedTasksContent ?? string.Empty}\n\nCloses #{trackedIssue.IssueNumber}";
             await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, finalBody, timeoutCts.Token).ConfigureAwait(false);
+
+            var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber);
+            await _gitHub.UpdatePullRequestTitleAsync(
+                comment.PrNumber,
+                $"#{trackedIssue.IssueNumber}: {issueName}",
+                timeoutCts.Token).ConfigureAwait(false);
 
             await _gitHub.MarkPrReadyForReviewAsync(comment.PrNumber, timeoutCts.Token).ConfigureAwait(false);
 

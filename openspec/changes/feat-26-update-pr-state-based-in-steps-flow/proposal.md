@@ -79,3 +79,12 @@ too.
   required; title and description continue to be updated via separate
   calls (matching the existing separation of concerns) rather than
   combining them into one request body.
+- Task 6.1 ("run the full suite and confirm all tests pass") is treated as
+  satisfied with 8 pre-existing failures unrelated to this change: they are
+  all CRLF-vs-LF string-comparison mismatches in CLI-agent prompt
+  assertions (e.g. `CommandTemplateRendererTests`,
+  `ProposeWorkflowRunnerTests`), caused by this checkout's line-ending
+  normalization, and reproduce identically on the base branch before any
+  of this change's edits (162/170 passing on `main` vs. 167/175 passing
+  after this change — the same 8 tests fail in both cases; all newly
+  added/updated assertions pass).

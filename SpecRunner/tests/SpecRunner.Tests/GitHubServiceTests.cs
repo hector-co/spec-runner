@@ -292,6 +292,38 @@ public class GitHubServiceTests
     }
 
     [Fact]
+    public async Task UpdatePullRequestTitleAsyncPatchesPullRequestTitle()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
+        var service = CreateService(request =>
+        {
+            capturedRequest = request;
+            capturedBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse(HttpStatusCode.OK, """{"number":12}""");
+        });
+
+        await service.UpdatePullRequestTitleAsync(12, "new title");
+
+        Assert.Equal(HttpMethod.Patch, capturedRequest!.Method);
+        Assert.Equal("https://api.github.com/repos/owner/repo/pulls/12", capturedRequest.RequestUri!.ToString());
+        Assert.Contains("\"title\":\"new title\"", capturedBody);
+    }
+
+    [Fact]
+    public async Task UpdatePullRequestTitleAsyncThrowsGitHubApiExceptionOnFailure()
+    {
+        var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent("not found")
+        });
+
+        var exception = await Assert.ThrowsAsync<GitHubApiException>(() => service.UpdatePullRequestTitleAsync(12, "new title"));
+
+        Assert.Equal(HttpStatusCode.NotFound, exception.StatusCode);
+    }
+
+    [Fact]
     public async Task NonSuccessResponseThrowsGitHubApiExceptionWithStatusCode()
     {
         var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)

@@ -35,4 +35,6 @@ public class FakeGitHubService : IGitHubService
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task UpdatePullRequestTitleAsync(int prNumber, string title, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
