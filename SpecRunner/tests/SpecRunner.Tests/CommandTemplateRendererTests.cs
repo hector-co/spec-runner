@@ -46,4 +46,46 @@ public class CommandTemplateRendererTests
 
         Assert.Contains("instructions", ex.Message);
     }
+
+    [Fact]
+    public async Task ADoubleQuoteInASuppliedValueIsEscapedNotRemoved()
+    {
+        var rendered = await _renderer.RenderAsync(
+            "update",
+            new Dictionary<string, string>
+            {
+                ["spec_name"] = "45-add-login-page",
+                ["instructions"] = "also handle the \"edge case\" comment"
+            });
+
+        Assert.Contains("also handle the \\\"edge case\\\" comment", rendered);
+    }
+
+    [Fact]
+    public async Task ABackslashInASuppliedValueIsEscapedBeforeQuoteEscaping()
+    {
+        var rendered = await _renderer.RenderAsync(
+            "update",
+            new Dictionary<string, string>
+            {
+                ["spec_name"] = "45-add-login-page",
+                ["instructions"] = "ends with a backslash-quote: \\\""
+            });
+
+        Assert.Contains("ends with a backslash-quote: \\\\\\\"", rendered);
+    }
+
+    [Fact]
+    public async Task AValueWithNoQuotesOrBackslashesIsUnaffected()
+    {
+        var rendered = await _renderer.RenderAsync(
+            "update",
+            new Dictionary<string, string>
+            {
+                ["spec_name"] = "45-add-login-page",
+                ["instructions"] = "a plain instruction with no special characters"
+            });
+
+        Assert.Contains("a plain instruction with no special characters", rendered);
+    }
 }
