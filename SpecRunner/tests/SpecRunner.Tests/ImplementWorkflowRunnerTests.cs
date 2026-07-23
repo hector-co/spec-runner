@@ -160,7 +160,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
         var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         tasksFileReader.CurrentContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [x] 1.1 Done";
-        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45", title: "Proposal for #45: Add login page"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/implement add validation") };
 
         await runner.RunOnceAsync();
@@ -182,6 +182,7 @@ public class ImplementWorkflowRunnerTests : IDisposable
         Assert.Contains((9001L, "+1"), gitHub.AddedReactions);
         Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12);
         Assert.Contains((12, "## 1. Tasks\n- [x] 1.1 Done"), gitHub.UpdatedPullRequestDescriptions);
+        Assert.Contains((12, "Implementations for #45: Add login page"), gitHub.UpdatedPullRequestTitles);
 
         var tracked = await stateStore.FindByIssueNumberAsync(45);
         Assert.NotNull(tracked);
@@ -191,17 +192,18 @@ public class ImplementWorkflowRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task MissingTasksFileSkipsPrDescriptionUpdate()
+    public async Task MissingTasksFileSkipsPrDescriptionUpdateButStillRenamesTitle()
     {
         var (runner, _, gitHub, _, stateStore, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
-        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45", title: "Proposal for #45: Add login page"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/implement") };
 
         await runner.RunOnceAsync();
 
         Assert.Empty(gitHub.UpdatedPullRequestDescriptions);
         Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12);
+        Assert.Contains((12, "Implementations for #45: Add login page"), gitHub.UpdatedPullRequestTitles);
     }
 
     [Fact]
