@@ -153,7 +153,7 @@ public class ProposeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"/opsx-propose feat-45-add-login-page\nWe need a login page.\n\n" +
+            "\"/opsx-propose feat-45-add-login-page\nAdd Login Page\nWe need a login page.\n\n" +
             "This is an unattended run — do not ask for confirmation or clarification\n" +
             "at any step. If something is ambiguous, make the most reasonable\n" +
             "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +

@@ -143,24 +143,26 @@ than being ignored, leaving its previously recorded branch name intact.
 After creating the issue branch, the workflow SHALL resolve the expected
 spec name via `ISpecNameResolver` from the issue number and title, render
 the `propose` command template via `ICommandTemplateRenderer` with
-`spec_name` set to the resolved expected spec name and `issue_body` set to
-the triggering issue's body, start a new CLI agent session via
+`spec_name` set to the resolved expected spec name, `issue_title` set to
+the triggering issue's title, and `issue_body` set to the triggering
+issue's body, start a new CLI agent session via
 `ICliAgentSessionFactory`, and send it the rendered template's content as
 the initial prompt, wrapped in a literal pair of escaped double quotes
 (`\"...\"`), then await the session reaching a terminal state
 (`Completed` or `Failed`). No part of the prompt SHALL be built via C#
 string interpolation.
 
-#### Scenario: Prompt combines the resolved spec name and issue body, plus the standing unattended-run instruction
+#### Scenario: Prompt combines the resolved spec name, issue title, and issue body, plus the standing unattended-run instruction
 - **WHEN** the workflow runs the CLI agent for issue `45` titled
   `"Add Login Page"` with body `"We need a login page."`
 - **THEN** the `propose` template SHALL be rendered with `spec_name` set
-  to `"feat-45-add-login-page"` and `issue_body` set to `"We need a login
-  page."`, and the session SHALL be started with an initial prompt whose
-  content is that rendered text — beginning
-  `"/opsx-propose feat-45-add-login-page\nWe need a login page."` and
-  ending with the standing unattended-run instruction block — wrapped in a
-  literal pair of double quotes
+  to `"feat-45-add-login-page"`, `issue_title` set to `"Add Login
+  Page"`, and `issue_body` set to `"We need a login page."`, and the
+  session SHALL be started with an initial prompt whose content is that
+  rendered text — beginning `"/opsx-propose
+  feat-45-add-login-page\nAdd Login Page\nWe need a login page."` and
+  ending with the standing unattended-run instruction block — wrapped in
+  a literal pair of double quotes
 
 ### Requirement: A completed CLI-agent run is committed, pushed, and opened as a draft PR
 When the CLI agent session reaches state `Completed`, the workflow SHALL

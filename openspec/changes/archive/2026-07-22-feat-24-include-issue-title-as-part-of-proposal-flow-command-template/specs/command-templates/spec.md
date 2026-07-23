@@ -1,35 +1,9 @@
-# command-templates
-
-## Purpose
-
-Defines the plain-text command template files shipped with
-`SpecRunner.Console` and the `ICommandTemplateRenderer` abstraction that
-renders them, so that CLI-agent command prompts are authored as template
-files rather than built via C# string interpolation.
-
-## Requirements
-
-### Requirement: Each CLI-agent command is defined by its own template file
-`SpecRunner.Console` SHALL ship one plain-text template file per
-CLI-agent command under `CommandTemplates/` (`propose.txt`, `apply.txt`,
-`update.txt`, `archive.txt`), copied to the build output directory. Each
-file SHALL contain the full, unquoted command text for that command,
-including any `{{token}}` placeholders and the standing unattended-run
-instruction block (see "Every command template ends with a standing
-unattended-run instruction" below). No workflow runner SHALL build this
-text via C# string interpolation.
-
-#### Scenario: Template files exist for every current command
-- **WHEN** the `SpecRunner.Console` output directory is inspected after a
-  build
-- **THEN** it SHALL contain `CommandTemplates/propose.txt`,
-  `CommandTemplates/apply.txt`, `CommandTemplates/update.txt`, and
-  `CommandTemplates/archive.txt`
+## ADDED Requirements
 
 ### Requirement: The `propose` template includes the issue title above the issue body
-The `propose` command template file (`CommandTemplates/propose.txt`) SHALL
-contain an `{{issue_title}}` placeholder on its own line, positioned
-above the `{{issue_body}}` placeholder line.
+The `propose` command template file (`CommandTemplates/propose.txt`)
+SHALL contain an `{{issue_title}}` placeholder on its own line,
+positioned above the `{{issue_body}}` placeholder line.
 
 #### Scenario: Rendered propose prompt places the issue title above the issue body
 - **WHEN** the `propose` template is rendered with `spec_name` set to
@@ -38,6 +12,8 @@ above the `{{issue_body}}` placeholder line.
 - **THEN** the returned text SHALL contain the rendered issue title line
   immediately above the rendered issue body line, with no `{{...}}`
   token remaining
+
+## MODIFIED Requirements
 
 ### Requirement: `ICommandTemplateRenderer` substitutes named placeholders in a template
 `SpecRunner.Core.Abstractions` SHALL define an `ICommandTemplateRenderer`
@@ -73,20 +49,3 @@ replacement values, reads the corresponding
 - **THEN** it SHALL throw an exception identifying the unresolved
   `token_name`, rather than leaving the literal `{{token_name}}` text in
   the returned string
-
-### Requirement: Every command template ends with a standing unattended-run instruction
-Each of the four shipped command template files SHALL end with the
-following fixed instruction block, verbatim:
-
-```
-This is an unattended run — do not ask for confirmation or clarification
-at any step. If something is ambiguous, make the most reasonable
-assumption, note it in proposal.md under a brief "Assumptions" note, and
-continue.
-```
-
-#### Scenario: Rendered prompt always carries the unattended-run instruction
-- **WHEN** any of the `propose`, `apply`, `update`, or `archive`
-  templates is rendered with a valid set of replacement values
-- **THEN** the returned text SHALL end with the standing unattended-run
-  instruction block shown above

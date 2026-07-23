@@ -14,11 +14,12 @@ public class CommandTemplateRendererTests
             new Dictionary<string, string>
             {
                 ["spec_name"] = "45-add-login-page",
+                ["issue_title"] = "Add Login Page",
                 ["issue_body"] = "We need a login page."
             });
 
         Assert.Equal(
-            "/opsx-propose 45-add-login-page\nWe need a login page.\n\n" +
+            "/opsx-propose 45-add-login-page\nAdd Login Page\nWe need a login page.\n\n" +
             "This is an unattended run — do not ask for confirmation or clarification\n" +
             "at any step. If something is ambiguous, make the most reasonable\n" +
             "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +

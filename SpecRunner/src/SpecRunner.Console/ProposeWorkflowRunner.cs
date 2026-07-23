@@ -136,6 +136,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 new Dictionary<string, string>
                 {
                     ["spec_name"] = specName,
+                    ["issue_title"] = comment.IssueTitle,
                     ["issue_body"] = comment.IssueBody
                 },
                 timeoutCts.Token).ConfigureAwait(false);

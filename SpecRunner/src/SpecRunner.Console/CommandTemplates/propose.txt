@@ -1,4 +1,5 @@
 /opsx-propose {{spec_name}}
+{{issue_title}}
 {{issue_body}}
 
 This is an unattended run — do not ask for confirmation or clarification
