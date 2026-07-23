@@ -6,9 +6,7 @@ Defines the plain-text command template files shipped with
 `SpecRunner.Console` and the `ICommandTemplateRenderer` abstraction that
 renders them, so that CLI-agent command prompts are authored as template
 files rather than built via C# string interpolation.
-
 ## Requirements
-
 ### Requirement: Each CLI-agent command is defined by its own template file
 `SpecRunner.Console` SHALL ship one plain-text template file per
 CLI-agent command under `CommandTemplates/` (`propose.txt`, `apply.txt`,
@@ -44,8 +42,14 @@ above the `{{issue_body}}` placeholder line.
 with an operation that accepts a template name and a set of named
 replacement values, reads the corresponding
 `CommandTemplates/{name}.txt` file, and returns its content with every
-`{{token_name}}` placeholder replaced by the matching supplied value.
-`SpecRunner.Console` SHALL provide the implementation,
+`{{token_name}}` placeholder replaced by the matching supplied value,
+after escaping that value so it cannot terminate a quoted block the
+rendered text is placed inside. Escaping SHALL first double every
+backslash (`\` → `\\`) in the value, then escape every double quote
+(`"` → `\"`), applied to each supplied value independently before
+substitution. Escaping SHALL NOT remove quote or backslash characters
+from the rendered output; it SHALL only ensure they appear in escaped
+form. `SpecRunner.Console` SHALL provide the implementation,
 `CommandTemplateRenderer`.
 
 #### Scenario: Placeholders are replaced with supplied values
@@ -74,6 +78,27 @@ replacement values, reads the corresponding
   `token_name`, rather than leaving the literal `{{token_name}}` text in
   the returned string
 
+#### Scenario: A double quote in a supplied value is escaped, not removed
+- **WHEN** the `update` template is rendered with `instructions` set to
+  `` also handle the "edge case" comment ``
+- **THEN** the returned text SHALL contain
+  `` also handle the \"edge case\" comment ``, with both double quote
+  characters preserved in escaped form rather than stripped
+
+#### Scenario: A backslash in a supplied value is escaped before quote escaping
+- **WHEN** the `update` template is rendered with `instructions` set to
+  a value ending in a literal backslash immediately followed by a double
+  quote (i.e. the two-character sequence `\"`)
+- **THEN** the returned text SHALL contain that sequence rendered as
+  `` \\\" `` (the original backslash doubled, followed by the escaped
+  quote), not as `` \\" `` (which would leave an unescaped, terminating
+  quote once unescaped by a standard-convention consumer)
+
+#### Scenario: A value with no quotes or backslashes is unaffected
+- **WHEN** any template is rendered with a supplied value containing
+  neither `"` nor `\` characters
+- **THEN** the returned text SHALL contain that value unchanged
+
 ### Requirement: Every command template ends with a standing unattended-run instruction
 Each of the four shipped command template files SHALL end with the
 following fixed instruction block, verbatim:
@@ -90,3 +115,4 @@ continue.
   templates is rendered with a valid set of replacement values
 - **THEN** the returned text SHALL end with the standing unattended-run
   instruction block shown above
+
