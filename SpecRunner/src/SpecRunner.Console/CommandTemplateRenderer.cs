@@ -27,9 +27,11 @@ public partial class CommandTemplateRenderer : ICommandTemplateRenderer
                     $"Command template '{templateName}' has an unresolved placeholder '{{{{{token}}}}}'.");
             }
 
-            return value;
+            return EscapeValue(value);
         });
     }
+
+    private static string EscapeValue(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     [GeneratedRegex(@"\{\{(\w+)\}\}")]
     private static partial Regex TokenRegex();
