@@ -100,11 +100,11 @@ public class ImplementWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"/opsx-apply 45-add-login-page add validation for the email field\n\n" +
-            "This is an unattended run — do not ask for confirmation or clarification\n" +
-            "at any step. If something is ambiguous, make the most reasonable\n" +
-            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
-            "continue.\"",
+            $"\"/opsx-apply 45-add-login-page add validation for the email field{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.\"",
             session.LastPrompt);
     }
 
@@ -171,11 +171,11 @@ public class ImplementWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"/opsx-apply 45-add-login-page add validation\n\n" +
-            "This is an unattended run — do not ask for confirmation or clarification\n" +
-            "at any step. If something is ambiguous, make the most reasonable\n" +
-            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
-            "continue.\"",
+            $"\"/opsx-apply 45-add-login-page add validation{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.\"",
             session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 

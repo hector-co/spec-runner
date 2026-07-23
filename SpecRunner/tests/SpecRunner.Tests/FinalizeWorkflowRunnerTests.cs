@@ -100,12 +100,12 @@ public class FinalizeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\n" +
-            "the export button task was implemented under a different name\n\n" +
-            "This is an unattended run — do not ask for confirmation or clarification\n" +
-            "at any step. If something is ambiguous, make the most reasonable\n" +
-            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
-            "continue.\"",
+            $"\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.{Environment.NewLine}" +
+            $"the export button task was implemented under a different name{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.\"",
             session.LastPrompt);
     }
 
@@ -173,12 +173,12 @@ public class FinalizeWorkflowRunnerTests : IDisposable
 
         var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
         Assert.Equal(
-            "\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.\n" +
-            "the export button was implemented under a different name\n\n" +
-            "This is an unattended run — do not ask for confirmation or clarification\n" +
-            "at any step. If something is ambiguous, make the most reasonable\n" +
-            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
-            "continue.\"",
+            $"\"Run `openspec archive \"45-add-login-page\" --yes`. Mark missing tasks as completed and continue.{Environment.NewLine}" +
+            $"the export button was implemented under a different name{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.\"",
             session.LastPrompt);
         Assert.True(session.CloseInputCalled);
 

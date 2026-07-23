@@ -19,11 +19,11 @@ public class CommandTemplateRendererTests
             });
 
         Assert.Equal(
-            "/opsx-propose 45-add-login-page\nAdd Login Page\nWe need a login page.\n\n" +
-            "This is an unattended run — do not ask for confirmation or clarification\n" +
-            "at any step. If something is ambiguous, make the most reasonable\n" +
-            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and\n" +
-            "continue.",
+            $"/opsx-propose 45-add-login-page{Environment.NewLine}Add Login Page{Environment.NewLine}We need a login page.{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.",
             rendered);
         Assert.DoesNotContain("{{", rendered);
         Assert.DoesNotContain("}}", rendered);
