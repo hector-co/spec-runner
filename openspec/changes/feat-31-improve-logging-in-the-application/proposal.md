@@ -64,3 +64,14 @@ application is healthy, stuck, or idle while a task run is in progress.
   commit/push, GitHub description/title/ready-for-review updates) without
   changing their control flow, error handling, or the existing
   Warning/Error logging on timeout/failure.
+- Task 6.2 asks for a manual run of `SpecRunner.Console` against a live
+  repo/GitHub/CLI-agent. This is an unattended run with no such
+  credentials available, so that step was instead verified with an
+  equivalent automated check: a throwaway xUnit test wired the real
+  `ProposeWorkflowRunner` to a logger that printed every log call, with a
+  fake CLI agent session that took 11 seconds to complete. The captured
+  output showed exactly one Information-level "Starting /propose flow..."
+  line, two Information-level "...still in progress" lines roughly 5
+  seconds apart during the CLI agent wait, and Debug-level start/finish
+  pairs for every other step with no overlap between the two levels — the
+  scratch test was deleted after confirming this.

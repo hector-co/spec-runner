@@ -93,6 +93,8 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
 
     private async Task ProcessCommentAsync(EligibleProposeComment comment, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Starting /propose flow for issue #{IssueNumber} (comment {CommentId})", comment.IssueNumber, comment.CommentId);
+
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "eyes", cancellationToken).ConfigureAwait(false);
 
         TrackedIssue? existingIssue = null;
@@ -110,10 +112,19 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 return;
             }
 
+            _logger.LogDebug("Starting git reset for issue #{IssueNumber}", comment.IssueNumber);
             await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
-            await _git.SwitchBranchAsync(_options.BaseBranchName, timeoutCts.Token).ConfigureAwait(false);
-            await _git.PullAsync(timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished git reset for issue #{IssueNumber}", comment.IssueNumber);
 
+            _logger.LogDebug("Starting switch to base branch for issue #{IssueNumber}", comment.IssueNumber);
+            await _git.SwitchBranchAsync(_options.BaseBranchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished switch to base branch for issue #{IssueNumber}", comment.IssueNumber);
+
+            _logger.LogDebug("Starting git pull for issue #{IssueNumber}", comment.IssueNumber);
+            await _git.PullAsync(timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished git pull for issue #{IssueNumber}", comment.IssueNumber);
+
+            _logger.LogDebug("Starting branch resolution for issue #{IssueNumber}", comment.IssueNumber);
             var branchName = $"feature/{comment.IssueNumber}";
             var suffix = 2;
             while (await _git.BranchExistsAsync(branchName, timeoutCts.Token).ConfigureAwait(false))
@@ -124,6 +135,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
 
             await _git.CreateBranchAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.SwitchBranchAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished branch resolution for issue #{IssueNumber}; using branch {BranchName}", comment.IssueNumber, branchName);
 
             var specName = _specNameResolver.Resolve(comment.IssueNumber, comment.IssueTitle);
 
@@ -131,6 +143,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 new TrackedIssue(comment.IssueNumber, specName) { BranchName = branchName },
                 timeoutCts.Token).ConfigureAwait(false);
 
+            _logger.LogDebug("Starting prompt rendering for issue #{IssueNumber}", comment.IssueNumber);
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "propose",
                 new Dictionary<string, string>
@@ -140,14 +153,31 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                     ["issue_body"] = comment.IssueBody
                 },
                 timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished prompt rendering for issue #{IssueNumber}", comment.IssueNumber);
 
             session = _cliAgentSessionFactory.CreateSession();
+            _logger.LogDebug("Starting CLI agent session for issue #{IssueNumber}", comment.IssueNumber);
             await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished starting CLI agent session for issue #{IssueNumber}", comment.IssueNumber);
 
-            await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+            using var progressCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+            var progressTask = ProgressIndicator.RunAsync(
+                _logger,
+                $"/propose flow for issue #{comment.IssueNumber} still in progress",
+                progressCts.Token);
+
+            try
             {
-                // Drain events; the channel completes once the session reaches a terminal state.
+                await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+                {
+                    // Drain events; the channel completes once the session reaches a terminal state.
+                }
+            }
+            finally
+            {
+                progressCts.Cancel();
+                await progressTask.ConfigureAwait(false);
             }
 
             if (session.State != CliAgentSessionState.Completed)
@@ -155,19 +185,30 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
                 throw new InvalidOperationException($"CLI agent session for issue #{comment.IssueNumber} ended in state {session.State}.");
             }
 
+            _logger.LogDebug("Starting spec folder resolution for issue #{IssueNumber}", comment.IssueNumber);
             specName = await _specFolderResolver.ResolveAsync(specName, comment.IssueNumber, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished spec folder resolution for issue #{IssueNumber}", comment.IssueNumber);
 
+            _logger.LogDebug("Starting commit for issue #{IssueNumber}", comment.IssueNumber);
             await _git.CommitAsync($"adding specs for #{comment.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished commit for issue #{IssueNumber}", comment.IssueNumber);
+
+            _logger.LogDebug("Starting push for issue #{IssueNumber}", comment.IssueNumber);
             await _git.PushAsync(branchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished push for issue #{IssueNumber}", comment.IssueNumber);
 
+            _logger.LogDebug("Starting tasks file read for issue #{IssueNumber}", comment.IssueNumber);
             var tasksContent = await _tasksFileReader.ReadCurrentAsync(specName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished tasks file read for issue #{IssueNumber}", comment.IssueNumber);
 
+            _logger.LogDebug("Starting draft pull request creation for issue #{IssueNumber}", comment.IssueNumber);
             var prNumber = await _gitHub.CreateDraftPullRequestAsync(
                 $"Proposal for #{comment.IssueNumber}: {comment.IssueTitle}",
                 tasksContent ?? string.Empty,
                 branchName,
                 _options.BaseBranchName,
                 timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished draft pull request creation for issue #{IssueNumber}", comment.IssueNumber);
 
             await ReportSuccessAsync(comment, specName, branchName, prNumber, timeoutCts.Token).ConfigureAwait(false);
         }

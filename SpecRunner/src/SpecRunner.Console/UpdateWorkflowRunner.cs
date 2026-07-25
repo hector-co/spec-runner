@@ -96,6 +96,8 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
 
     private async Task ProcessCommentAsync(EligibleUpdateComment comment, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Starting /update flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
+
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "eyes", cancellationToken).ConfigureAwait(false);
 
         TrackedIssue? trackedIssue = null;
@@ -113,11 +115,14 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
                 return;
             }
 
+            _logger.LogDebug("Starting git sync for PR #{PrNumber}", comment.PrNumber);
             await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
             await _git.FetchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.SwitchBranchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.ResetHardAsync($"origin/{trackedIssue.BranchName}", timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished git sync for PR #{PrNumber}", comment.PrNumber);
 
+            _logger.LogDebug("Starting prompt rendering for PR #{PrNumber}", comment.PrNumber);
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "update",
                 new Dictionary<string, string>
@@ -126,14 +131,31 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
                     ["instructions"] = comment.Instructions
                 },
                 timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished prompt rendering for PR #{PrNumber}", comment.PrNumber);
 
             session = _cliAgentSessionFactory.CreateSession();
+            _logger.LogDebug("Starting CLI agent session for PR #{PrNumber}", comment.PrNumber);
             await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished starting CLI agent session for PR #{PrNumber}", comment.PrNumber);
 
-            await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+            using var progressCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+            var progressTask = ProgressIndicator.RunAsync(
+                _logger,
+                $"/update flow for PR #{comment.PrNumber} still in progress",
+                progressCts.Token);
+
+            try
             {
-                // Drain events; the channel completes once the session reaches a terminal state.
+                await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+                {
+                    // Drain events; the channel completes once the session reaches a terminal state.
+                }
+            }
+            finally
+            {
+                progressCts.Cancel();
+                await progressTask.ConfigureAwait(false);
             }
 
             if (session.State != CliAgentSessionState.Completed)
@@ -141,13 +163,22 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
                 throw new InvalidOperationException($"CLI agent session for PR #{comment.PrNumber} ended in state {session.State}.");
             }
 
+            _logger.LogDebug("Starting commit for PR #{PrNumber}", comment.PrNumber);
             await _git.CommitAsync($"updating specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
-            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished commit for PR #{PrNumber}", comment.PrNumber);
 
+            _logger.LogDebug("Starting push for PR #{PrNumber}", comment.PrNumber);
+            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished push for PR #{PrNumber}", comment.PrNumber);
+
+            _logger.LogDebug("Starting tasks file read for PR #{PrNumber}", comment.PrNumber);
             var tasksContent = await _tasksFileReader.ReadCurrentAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished tasks file read for PR #{PrNumber}", comment.PrNumber);
             if (tasksContent is not null)
             {
+                _logger.LogDebug("Starting pull request description update for PR #{PrNumber}", comment.PrNumber);
                 await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, tasksContent, timeoutCts.Token).ConfigureAwait(false);
+                _logger.LogDebug("Finished pull request description update for PR #{PrNumber}", comment.PrNumber);
             }
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
