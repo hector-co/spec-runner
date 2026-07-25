@@ -60,7 +60,7 @@ deployed executable).
 
 | Key | Description |
 | --- | --- |
-| `Executable` | The OpenSpec CLI executable. Defaults to `openspec`, resolved via `PATH`. |
+| `Executable` | The OpenSpec CLI executable. Defaults to `openspec.cmd`, resolved via `PATH`. |
 
 ### Prerequisites
 
