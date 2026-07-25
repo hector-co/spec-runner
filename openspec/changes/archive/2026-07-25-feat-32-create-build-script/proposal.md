@@ -99,3 +99,9 @@ configuration.
   validate --strict` recognizes it as a proper requirement statement —
   a pre-existing formatting issue unrelated to the `.specrunner`
   relocation, fixed while re-validating this change.
+- Archival (unattended run): all artifacts and tasks were already marked
+  complete, so no tasks needed to be checked off. `build-script` is a new
+  capability (no existing main spec to conflict with) and its delta spec
+  is purely `ADDED Requirements`, so the delta spec was synced into
+  `openspec/specs/build-script/spec.md` before archiving, per the
+  skill's recommended default.
