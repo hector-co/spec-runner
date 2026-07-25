@@ -4,7 +4,7 @@ namespace SpecRunner.Console;
 
 internal static class ProgressIndicator
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
 
     public static async Task RunAsync(ILogger logger, string message, CancellationToken cancellationToken)
     {

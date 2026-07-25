@@ -10,7 +10,7 @@ public class ProgressIndicatorTests
     {
         var logger = new RecordingLogger();
         using var cts = new CancellationTokenSource();
-        cts.CancelAfter(TimeSpan.FromSeconds(5.5));
+        cts.CancelAfter(TimeSpan.FromSeconds(30.5));
 
         await ProgressIndicator.RunAsync(logger, "still in progress", cts.Token);
 

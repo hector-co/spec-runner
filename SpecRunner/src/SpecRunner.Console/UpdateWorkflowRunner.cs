@@ -182,6 +182,8 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
             }
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("Finished /update flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {

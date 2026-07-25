@@ -193,6 +193,9 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             _logger.LogDebug("Finished mark pull request ready for review for PR #{PrNumber}", comment.PrNumber);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("Finished /finalize flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
+
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {

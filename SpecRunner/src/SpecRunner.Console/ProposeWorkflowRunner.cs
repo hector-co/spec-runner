@@ -211,6 +211,8 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
             _logger.LogDebug("Finished draft pull request creation for issue #{IssueNumber}", comment.IssueNumber);
 
             await ReportSuccessAsync(comment, specName, branchName, prNumber, timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("Finished /propose flow for issue #{IssueNumber} (comment {CommentId})", comment.IssueNumber, comment.CommentId);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {

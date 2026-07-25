@@ -190,6 +190,8 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             _logger.LogDebug("Finished pull request title update for PR #{PrNumber}", comment.PrNumber);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("Finished /implement flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
