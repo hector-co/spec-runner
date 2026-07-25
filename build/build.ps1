@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $csproj = Join-Path $repoRoot 'SpecRunner/src/SpecRunner.Console/SpecRunner.Console.csproj'
-$outputDir = Join-Path $repoRoot '.specrunner'
+$outputDir = Join-Path $PSScriptRoot '.specrunner'
 
 function Invoke-Publish {
     param(

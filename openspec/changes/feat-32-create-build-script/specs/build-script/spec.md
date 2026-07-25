@@ -50,43 +50,46 @@ omitted.
   to `true` and SHALL set `PublishSingleFile` to `true`
 
 ### Requirement: Published output location
-Every publish configuration SHALL write its output directly into the
-repository-root `.specrunner` folder, with no per-configuration
-subfolder. None of the configurations SHALL write into or delete
-`.specrunner/state.db`.
+The build script SHALL create a `.specrunner` folder inside the
+repository-root `build` folder (`build/.specrunner`), and every publish
+configuration SHALL write its output directly into that folder, with no
+per-configuration subfolder. None of the configurations SHALL write into
+or delete the repository-root `.specrunner/state.db` file (a separate
+folder from `build/.specrunner`, used at runtime by the SQLite state
+store).
 
-#### Scenario: FrameworkDependent output goes directly into .specrunner
+#### Scenario: FrameworkDependent output goes directly into build/.specrunner
 - **WHEN** the `FrameworkDependent` configuration is run
 - **THEN** published output SHALL be written directly under
-  `.specrunner/`, not in a nested subfolder
+  `build/.specrunner/`, not in a nested subfolder
 
-#### Scenario: X86 output goes directly into .specrunner
+#### Scenario: X86 output goes directly into build/.specrunner
 - **WHEN** the `X86` configuration is run
 - **THEN** published output SHALL be written directly under
-  `.specrunner/`, not in a nested subfolder
+  `build/.specrunner/`, not in a nested subfolder
 
-#### Scenario: SingleFile output goes directly into .specrunner
+#### Scenario: SingleFile output goes directly into build/.specrunner
 - **WHEN** the `SingleFile` configuration is run
 - **THEN** published output SHALL be written directly under
-  `.specrunner/`, not in a nested subfolder
+  `build/.specrunner/`, not in a nested subfolder
 
-#### Scenario: Running all configurations does not touch the state file
+#### Scenario: Running all configurations does not touch the runtime state file
 - **WHEN** `build/build.ps1` is run with no `-Configuration` argument
-  while `.specrunner/state.db` exists
-- **THEN** `.specrunner/state.db` SHALL remain unmodified and undeleted
-  after the script completes
+  while the repository-root `.specrunner/state.db` exists
+- **THEN** the repository-root `.specrunner/state.db` SHALL remain
+  unmodified and undeleted after the script completes
 
 #### Scenario: Running all configurations leaves the last configuration's like-named files in place
 - **WHEN** `build/build.ps1` is run with no `-Configuration` argument
 - **THEN** the `FrameworkDependent`, `X86`, and `SingleFile`
-  configurations SHALL publish in order directly into `.specrunner/`,
-  and any output files that share the same name across configurations
-  SHALL end up containing the last-published (`SingleFile`)
-  configuration's content
+  configurations SHALL publish in order directly into
+  `build/.specrunner/`, and any output files that share the same name
+  across configurations SHALL end up containing the last-published
+  (`SingleFile`) configuration's content
 
 ### Requirement: Build failure stops the script
-If a `dotnet publish` invocation for any configuration fails, the build
-script SHALL stop immediately with a non-zero exit code rather than
+The build script SHALL stop immediately with a non-zero exit code if a
+`dotnet publish` invocation for any configuration fails, rather than
 continuing to the next configuration.
 
 #### Scenario: A failing publish step halts remaining configurations

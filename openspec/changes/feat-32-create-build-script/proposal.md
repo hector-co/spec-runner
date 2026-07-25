@@ -17,8 +17,9 @@ configuration.
 - The script supports three publish configurations: framework-dependent,
   x86 (framework-dependent, win-x86 runtime), and single-file
   (self-contained, single-file, win-x64 runtime).
-- Published output is written directly into the repository-root
-  `.specrunner` folder (no per-configuration subfolders).
+- Published output is written directly into a `.specrunner` folder
+  created inside the `build/` folder (`build/.specrunner`), not the
+  repository root (no per-configuration subfolders).
 - The script accepts a parameter selecting which publish configuration(s)
   to run, defaulting to all three.
 
@@ -27,40 +28,47 @@ configuration.
 ### New Capabilities
 - `build-script`: A PowerShell script under `/build` that publishes
   `SpecRunner.Console` in framework-dependent, x86, and single-file
-  configurations, writing output directly into `.specrunner`.
+  configurations, writing output directly into `build/.specrunner`.
 
 ### Modified Capabilities
 (none)
 
 ## Impact
 
-- Affected code: new `build/build.ps1` file only; no application source
-  changes.
-- Affected paths: writes generated (git-ignored) output directly into
-  `.specrunner/`, which is already excluded from source control by the
-  root `.gitignore`.
-- No impact on existing specs, runtime behavior, or the state store,
-  beyond the file-naming-collision risk noted under Assumptions below.
+- Affected code: `build/build.ps1`, plus a `.gitignore` addition for the
+  new nested output path; no application source changes.
+- Affected paths: writes generated output directly into
+  `build/.specrunner/`. The existing root `.gitignore` entry
+  (`/.specrunner`) only matches the repository-root folder, so a new
+  `/build/.specrunner` entry is added to keep the build output
+  git-ignored.
+- No impact on existing specs, runtime behavior, or the state store:
+  moving build output into `build/.specrunner` puts it in a different
+  folder than the repository-root `.specrunner/state.db` used by the
+  SQLite state store, which removes the file-naming-collision risk
+  previously noted for this change.
 
 ## Assumptions
 
 - "using powershell syntax create a build script" is read as: write the
   script itself in PowerShell (`build/build.ps1`), not merely a script
   that happens to invoke PowerShell.
-- The repository root `.specrunner` folder already exists and is used at
-  runtime for the SQLite state store (`state.db`). Per explicit
-  instruction, published output is written directly into `.specrunner/`
-  with no per-configuration subfolders. This means: (a) the three
-  publish configurations share one output directory, so when running
-  `All`, files with the same name across configurations (e.g. the main
-  executable/DLLs) are overwritten by whichever configuration publishes
-  last, rather than coexisting — this is accepted as the intended
-  behavior of the explicit "no subfolders" instruction, not a defect;
-  and (b) `dotnet publish` only ever writes/updates its own output
-  files and does not touch unrelated files already present in the
-  target folder, so `.specrunner/state.db` is not deleted or modified
-  by the publish step, though it now sits alongside build output in the
-  same folder.
+- Published output is written directly into `build/.specrunner/` with no
+  per-configuration subfolders, so the three publish configurations
+  share one output directory: when running `All`, files with the same
+  name across configurations (e.g. the main executable/DLLs) are
+  overwritten by whichever configuration publishes last, rather than
+  coexisting — this is accepted as the intended behavior of the explicit
+  "no subfolders" instruction, not a defect.
+- Update (this revision): the `.specrunner` output folder is now created
+  inside `build/` (`build/.specrunner`) instead of at the repository
+  root. The repository root also has its own separate `.specrunner`
+  folder used at runtime for the SQLite state store (`state.db`), which
+  this script never touches now that build output lives under `build/`
+  instead of sharing that root folder. Since the existing root
+  `.gitignore` entry (`/.specrunner`) does not match the new nested
+  `build/.specrunner` path, a `/build/.specrunner` entry is added to
+  `.gitignore` so the relocated build output stays git-ignored.
 - "framework dependant" is interpreted as the default `dotnet publish`
   mode (`--self-contained false`) with no runtime identifier, producing a
   portable, framework-dependent output.
@@ -86,3 +94,8 @@ configuration.
   (PE32/Intel i386 for X86, a single ~76 MB self-contained PE32+ exe with
   no sibling managed DLLs for SingleFile), and that `.specrunner/state.db`
   (and `-shm`/`-wal`) stay byte-for-byte unchanged across all runs.
+- This revision also reworded the "Build failure stops the script"
+  requirement's opening sentence (moving `SHALL` earlier) so `openspec
+  validate --strict` recognizes it as a proper requirement statement —
+  a pre-existing formatting issue unrelated to the `.specrunner`
+  relocation, fixed while re-validating this change.

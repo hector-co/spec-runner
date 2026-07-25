@@ -5,8 +5,11 @@
 process; contributors would run `dotnet publish` by hand with whatever
 flags they remember. The repository root already contains a git-ignored
 `.specrunner` folder used at runtime by the app's SQLite state store
-(`.specrunner/state.db`, see `state-store-schema`). The build script must
-not collide with or disturb that file.
+(`.specrunner/state.db`, see `state-store-schema`). The build script
+writes its output into a separate `.specrunner` folder nested inside
+`build/` (`build/.specrunner`), so it never shares a directory with, and
+cannot collide with or disturb, the repository-root runtime state
+folder.
 
 ## Goals / Non-Goals
 
@@ -14,9 +17,10 @@ not collide with or disturb that file.
 - Provide a single PowerShell entry point (`build/build.ps1`) that
   publishes `SpecRunner.Console.csproj` in one or more of three named
   configurations: framework-dependent, x86, single-file.
-- Write publish output directly into `.specrunner` (no per-configuration
-  subfolders) so generated artifacts stay git-ignored without touching
-  the root `.gitignore`.
+- Write publish output directly into a `.specrunner` folder created
+  inside `build/` (`build/.specrunner`, no per-configuration subfolders)
+  so generated artifacts are clearly build-tool-owned and stay git-ignored
+  via a dedicated `.gitignore` entry.
 - Make the script runnable with no required parameters (defaults to
   building all three configurations) and runnable for a single
   configuration via a parameter.
@@ -36,17 +40,23 @@ not collide with or disturb that file.
   separate from the `SpecRunner` solution folder and `openspec` planning
   folder.
 
-- **Output root**: `<repo-root>/.specrunner/`. Per explicit instruction,
-  all publish configurations write directly into `.specrunner` with no
-  per-configuration subfolders. This supersedes the earlier
-  `.specrunner/publish/<configuration>/` layout. Consequence: running
+- **Output root**: `<repo-root>/build/.specrunner/`. Per explicit
+  instruction, the `.specrunner` output folder is created inside `build/`
+  (not at the repository root), and all publish configurations write
+  directly into it with no per-configuration subfolders. This supersedes
+  both the earlier `.specrunner/publish/<configuration>/` layout and the
+  interim repository-root `.specrunner/` layout. Consequence: running
   more than one configuration in the same invocation (e.g. the default
   `All`) means later configurations' output files can overwrite earlier
-  configurations' files of the same name in `.specrunner/` — accepted as
-  intended given the explicit "no subfolders" requirement.
-  `dotnet publish` does not delete pre-existing unrelated files in the
-  output folder, so `.specrunner/state.db` is left alone even though it
-  now shares a directory with build output.
+  configurations' files of the same name in `build/.specrunner/` —
+  accepted as intended given the explicit "no subfolders" requirement.
+  Because this output root is nested under `build/` rather than the
+  repository root, it is a distinct folder from the repository-root
+  `.specrunner/state.db` used by the SQLite state store — the two no
+  longer share a directory at all, so the earlier collision risk is moot.
+  The script resolves this path via `$PSScriptRoot` (the `build/` folder
+  the script lives in), so it works regardless of the caller's working
+  directory.
 
 - **Configuration → `dotnet publish` mapping**:
   - `FrameworkDependent`: `dotnet publish <csproj> -c Release -o <out>`
@@ -61,7 +71,7 @@ not collide with or disturb that file.
     self-contained single executable; single-file publishing requires
     both a runtime identifier and self-contained mode, so `win-x64` is
     used as the default 64-bit Windows target.
-  Every configuration publishes to the same `<out>` = `.specrunner/`.
+  Every configuration publishes to the same `<out>` = `build/.specrunner/`.
 
 - **Parameterization**: a single `-Configuration` parameter accepting
   `FrameworkDependent`, `X86`, `SingleFile`, or `All` (default `All`),
@@ -73,24 +83,27 @@ not collide with or disturb that file.
   and checks `$LASTEXITCODE` after each `dotnet publish` invocation,
   exiting non-zero immediately on the first failure rather than
   continuing to the next configuration. Rationale: a partial/broken build
-  silently left in `.specrunner/publish` is worse than stopping fast and
+  silently left in `build/.specrunner` is worse than stopping fast and
   surfacing the failing configuration clearly.
 
 ## Risks / Trade-offs
 
-- [Reusing `.specrunner` for both runtime state and build output could
-  confuse contributors who expect `.specrunner` to be purely runtime
-  state] → Accepted per explicit instruction to write output directly
-  into `.specrunner` with no subfolders; documented via script
-  comments/README note.
-- [Publishing all three configurations into the same flat `.specrunner`
-  folder means files with matching names across configurations
-  overwrite each other, so after an `All` run only the last-published
-  configuration's copies of shared filenames remain] → Accepted as the
-  direct consequence of the explicit "no subfolders" requirement; a
-  caller who needs all three outputs preserved simultaneously must run
-  each configuration separately and move/rename the output between
-  runs, which is outside this script's scope.
+- [Nesting `.specrunner` inside `build/` adds a second, differently-scoped
+  `.specrunner` folder to the repository (root one for runtime state,
+  `build/.specrunner` for publish output), which could read as
+  duplication] → Accepted: this actually removes the earlier risk of the
+  two purposes sharing one directory, at the cost of two folders with
+  the same base name in the tree. The existing root `.gitignore` entry
+  (`/.specrunner`) does not match the nested path, so a separate
+  `/build/.specrunner` entry is added to `.gitignore`.
+- [Publishing all three configurations into the same flat
+  `build/.specrunner` folder means files with matching names across
+  configurations overwrite each other, so after an `All` run only the
+  last-published configuration's copies of shared filenames remain] →
+  Accepted as the direct consequence of the explicit "no subfolders"
+  requirement; a caller who needs all three outputs preserved
+  simultaneously must run each configuration separately and move/rename
+  the output between runs, which is outside this script's scope.
 - [`win-x86`/`win-x64` runtime identifiers are Windows-specific] →
   Acceptable per explicit request for PowerShell/x86; not a design
   concern for this change since no cross-platform requirement was given.
