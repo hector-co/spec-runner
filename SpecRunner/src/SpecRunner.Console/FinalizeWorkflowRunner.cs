@@ -96,6 +96,8 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
 
     private async Task ProcessCommentAsync(EligibleFinalizeComment comment, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Starting /finalize flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
+
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "eyes", cancellationToken).ConfigureAwait(false);
 
         TrackedIssue? trackedIssue = null;
@@ -113,11 +115,14 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
                 return;
             }
 
+            _logger.LogDebug("Starting git sync for PR #{PrNumber}", comment.PrNumber);
             await _git.ResetHardAsync("HEAD", timeoutCts.Token).ConfigureAwait(false);
             await _git.FetchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.SwitchBranchAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
             await _git.ResetHardAsync($"origin/{trackedIssue.BranchName}", timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished git sync for PR #{PrNumber}", comment.PrNumber);
 
+            _logger.LogDebug("Starting prompt rendering for PR #{PrNumber}", comment.PrNumber);
             var prompt = await _commandTemplateRenderer.RenderAsync(
                 "archive",
                 new Dictionary<string, string>
@@ -126,14 +131,31 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
                     ["instructions"] = comment.Instructions
                 },
                 timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished prompt rendering for PR #{PrNumber}", comment.PrNumber);
 
             session = _cliAgentSessionFactory.CreateSession();
+            _logger.LogDebug("Starting CLI agent session for PR #{PrNumber}", comment.PrNumber);
             await session.StartAsync($"\"{prompt}\"", timeoutCts.Token).ConfigureAwait(false);
             await session.CloseInputAsync(timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished starting CLI agent session for PR #{PrNumber}", comment.PrNumber);
 
-            await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+            using var progressCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+            var progressTask = ProgressIndicator.RunAsync(
+                _logger,
+                $"/finalize flow for PR #{comment.PrNumber} still in progress",
+                progressCts.Token);
+
+            try
             {
-                // Drain events; the channel completes once the session reaches a terminal state.
+                await foreach (var _ in session.ReadEventsAsync(timeoutCts.Token).ConfigureAwait(false))
+                {
+                    // Drain events; the channel completes once the session reaches a terminal state.
+                }
+            }
+            finally
+            {
+                progressCts.Cancel();
+                await progressTask.ConfigureAwait(false);
             }
 
             if (session.State != CliAgentSessionState.Completed)
@@ -141,22 +163,39 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
                 throw new InvalidOperationException($"CLI agent session for PR #{comment.PrNumber} ended in state {session.State}.");
             }
 
+            _logger.LogDebug("Starting commit for PR #{PrNumber}", comment.PrNumber);
             await _git.CommitAsync($"finalizing specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
-            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished commit for PR #{PrNumber}", comment.PrNumber);
 
+            _logger.LogDebug("Starting push for PR #{PrNumber}", comment.PrNumber);
+            await _git.PushAsync(trackedIssue.BranchName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished push for PR #{PrNumber}", comment.PrNumber);
+
+            _logger.LogDebug("Starting archived tasks file read for PR #{PrNumber}", comment.PrNumber);
             var archivedTasksContent = await _tasksFileReader.ReadArchivedAsync(trackedIssue.SpecName, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished archived tasks file read for PR #{PrNumber}", comment.PrNumber);
+
             var finalBody = $"{archivedTasksContent ?? string.Empty}\n\nCloses #{trackedIssue.IssueNumber}";
+            _logger.LogDebug("Starting pull request description update for PR #{PrNumber}", comment.PrNumber);
             await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, finalBody, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished pull request description update for PR #{PrNumber}", comment.PrNumber);
 
             var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber);
+            _logger.LogDebug("Starting pull request title update for PR #{PrNumber}", comment.PrNumber);
             await _gitHub.UpdatePullRequestTitleAsync(
                 comment.PrNumber,
                 $"#{trackedIssue.IssueNumber}: {issueName}",
                 timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished pull request title update for PR #{PrNumber}", comment.PrNumber);
 
+            _logger.LogDebug("Starting mark pull request ready for review for PR #{PrNumber}", comment.PrNumber);
             await _gitHub.MarkPrReadyForReviewAsync(comment.PrNumber, timeoutCts.Token).ConfigureAwait(false);
+            _logger.LogDebug("Finished mark pull request ready for review for PR #{PrNumber}", comment.PrNumber);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("Finished /finalize flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
+
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
