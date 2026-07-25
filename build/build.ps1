@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('All', 'FrameworkDependent', 'X86', 'SingleFile')]
-    [string]$Configuration = 'All'
+    [string]$Configuration = 'SingleFile'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,7 +33,7 @@ function Publish-X86 {
 }
 
 function Publish-SingleFile {
-    Invoke-Publish -Name 'SingleFile' -PublishArgs @('-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true')
+    Invoke-Publish -Name 'SingleFile' -PublishArgs @('-r', 'win-x86', '--self-contained', 'false', '-p:PublishSingleFile=true', '-p:PublishReadyToRun=false')
 }
 
 switch ($Configuration) {
