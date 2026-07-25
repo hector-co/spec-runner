@@ -82,3 +82,6 @@ before any GitHub/git/CLI-agent work is attempted.
   `"Repository connection: {Status} - {Message}"` line, since
   `DependencyCheckResult` exposes a success flag rather than a
   connection-specific status enum.
+- Tasks 6.1–6.3 (test suite run and manual console verification) were
+  verified manually by the requester outside of this automated run and are
+  marked complete on that basis.

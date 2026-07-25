@@ -72,10 +72,10 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Run the full test suite and confirm it passes
-- [ ] 6.2 Manually run the console app with a valid environment and confirm
+- [x] 6.1 Run the full test suite and confirm it passes
+- [x] 6.2 Manually run the console app with a valid environment and confirm
       all three dependency lines are printed and the app proceeds to the
       polling loop
-- [ ] 6.3 Manually run the console app with an invalid/missing CLI
+- [x] 6.3 Manually run the console app with an invalid/missing CLI
       executable configured and confirm the failure is reported and the
       app exits non-zero without starting the polling loop
