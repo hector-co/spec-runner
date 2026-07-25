@@ -75,3 +75,14 @@ configuration.
 - These three configurations are independent named modes the script can
   run individually or all together in one invocation; the script defaults
   to running all three when no configuration is specified.
+- During verification, an internal helper function originally took a
+  parameter named `$Args`. PowerShell parameter names are case-insensitive
+  and `$args` is a reserved automatic variable, so this silently broke
+  argument forwarding to `dotnet publish` (the `-r`/`--self-contained`
+  flags were dropped for the `X86` step in some invocations, publishing
+  the wrong architecture). Fixed by renaming the parameter to
+  `$PublishArgs`. Verified afterward that `-Configuration X86` and
+  `-Configuration SingleFile` each produce correctly-architected output
+  (PE32/Intel i386 for X86, a single ~76 MB self-contained PE32+ exe with
+  no sibling managed DLLs for SingleFile), and that `.specrunner/state.db`
+  (and `-shm`/`-wal`) stay byte-for-byte unchanged across all runs.
