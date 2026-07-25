@@ -52,6 +52,11 @@ environment variables, and user secrets in Development) under the `SpecRunner` s
 - `WorkingDirectory` - working directory for the launched process. Falls back to
   `SpecRunner:LocalRepositoryPath` when unset.
 
+`SpecRunner.Console` also binds `OpenSpecCliOptions` under the `OpenSpecCli` section:
+
+- `Executable` - the OpenSpec CLI executable to check for on startup (defaults to
+  `"openspec"`, resolved via `PATH`).
+
 ## CLI agent execution
 
 `SpecRunner.Cli` provides the process-execution primitive that runs a CLI-based coding
@@ -218,15 +223,25 @@ code) comments are out of scope.
 
 ## Status
 
-`SpecRunner.Console` starts the host and tests whether the configured `RepositoryUrl` +
-`GitHubToken` can reach the target repository via the GitHub REST API
-(`IRepositoryConnectionTester`). It logs and prints the resulting status (`NotConfigured`,
-`InvalidRepositoryUrl`, `Connected`, `AuthenticationFailed`, `RepositoryNotFound`, or
-`NetworkError`) and a message. If the status is anything other than `Connected`, it exits
-`1` without running any scan pass. `GitHubToken` is never included in printed or logged
-output.
+`SpecRunner.Console` starts the host and runs a startup dependency check
+(`IStartupDependencyChecker`) before doing anything else, verifying three things in order:
 
-If the status is `Connected`, the process enters a polling loop: it runs one
+1. **Claude CLI** - the configured `CliAgentOptions.Executable` (default `"claude"`) can be
+   located and launched, via `ICliToolAvailabilityChecker`.
+2. **OpenSpec CLI** - the configured `OpenSpecCliOptions.Executable` (default `"openspec"`)
+   can be located and launched, via the same `ICliToolAvailabilityChecker`.
+3. **GitHub connection** - the configured `RepositoryUrl` + `GitHubToken` can reach the
+   target repository via the GitHub REST API (`IRepositoryConnectionTester`), reporting the
+   same statuses as before (`NotConfigured`, `InvalidRepositoryUrl`, `Connected`,
+   `AuthenticationFailed`, `RepositoryNotFound`, or `NetworkError`).
+
+Each of the three checks is logged and printed individually, with its own name, status, and
+message. `GitHubToken` is never included in printed or logged output. A failure in one check
+does not stop the others from running. If any of the three checks fails, an error
+identifying the failed dependency/dependencies is logged and the process exits `1` without
+running any scan pass.
+
+If all three checks succeed, the process enters a polling loop: it runs one
 `propose-workflow` scan pass to completion, then one `implement-workflow` scan pass to
 completion, then one `update-workflow` scan pass to completion, waits
 `SpecRunnerOptions.PollingInterval`, and repeats, indefinitely - it no longer exits after a

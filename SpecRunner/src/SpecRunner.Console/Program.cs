@@ -9,7 +9,6 @@ using SpecRunner.Console;
 using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
-using SpecRunner.Core.Models;
 using SpecRunner.Git;
 using SpecRunner.GitHub;
 using SpecRunner.State;
@@ -27,6 +26,10 @@ builder.Services
     .AddOptions<CliAgentOptions>()
     .Bind(builder.Configuration.GetSection(CliAgentOptions.SectionName));
 
+builder.Services
+    .AddOptions<OpenSpecCliOptions>()
+    .Bind(builder.Configuration.GetSection(OpenSpecCliOptions.SectionName));
+
 builder.Services.AddSingleton<ISpecNameResolver, SpecNameResolver>();
 builder.Services.AddSingleton<ITasksFileReader, TasksFileReader>();
 builder.Services.AddSingleton<ISpecFolderResolver, SpecFolderResolver>();
@@ -35,6 +38,8 @@ builder.Services.AddSingleton<IGitService, GitService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
 builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
+builder.Services.AddSingleton<ICliToolAvailabilityChecker, ProcessCliToolAvailabilityChecker>();
+builder.Services.AddSingleton<IStartupDependencyChecker, StartupDependencyChecker>();
 builder.Services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
 builder.Services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
 builder.Services.AddSingleton<IUpdateWorkflowRunner, UpdateWorkflowRunner>();
@@ -52,17 +57,35 @@ var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
 logger.LogInformation("SpecRunner host started");
 
-var connectionTester = host.Services.GetRequiredService<IRepositoryConnectionTester>();
-var connectionResult = await connectionTester.TestConnectionAsync();
+var startupDependencyChecker = host.Services.GetRequiredService<IStartupDependencyChecker>();
+var dependencyResults = await startupDependencyChecker.CheckAllAsync();
 
-logger.LogInformation(
-    "Repository connection test result: {Status} - {Message}",
-    connectionResult.Status,
-    connectionResult.Message);
-Console.WriteLine($"Repository connection: {connectionResult.Status} - {connectionResult.Message}");
-
-if (connectionResult.Status != RepositoryConnectionStatus.Connected)
+foreach (var dependencyResult in dependencyResults)
 {
+    if (dependencyResult.IsSuccessful)
+    {
+        logger.LogInformation(
+            "Startup dependency check: {Name} - {Message}",
+            dependencyResult.Name,
+            dependencyResult.Message);
+    }
+    else
+    {
+        logger.LogError(
+            "Startup dependency check: {Name} - {Message}",
+            dependencyResult.Name,
+            dependencyResult.Message);
+    }
+
+    Console.WriteLine($"{dependencyResult.Name}: {(dependencyResult.IsSuccessful ? "OK" : "FAILED")} - {dependencyResult.Message}");
+}
+
+var failedDependencies = dependencyResults.Where(r => !r.IsSuccessful).ToList();
+if (failedDependencies.Count > 0)
+{
+    logger.LogError(
+        "Startup dependency check failed for: {FailedDependencies}",
+        string.Join(", ", failedDependencies.Select(r => r.Name)));
     return 1;
 }
 

@@ -12,12 +12,20 @@ internal sealed class FakeChildProcessFactory : IChildProcessFactory
 
     public string? WorkingDirectory { get; private set; }
 
+    public int? NextAutoExitCode { get; set; }
+
+    public Exception? NextStartException { get; set; }
+
     public IChildProcess Create(string executable, IReadOnlyList<string> arguments, string workingDirectory)
     {
         Executable = executable;
         Arguments = arguments;
         WorkingDirectory = workingDirectory;
-        LastCreated = new FakeChildProcess();
+        LastCreated = new FakeChildProcess
+        {
+            AutoExitCode = NextAutoExitCode,
+            StartException = NextStartException
+        };
         return LastCreated;
     }
 }

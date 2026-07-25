@@ -15,6 +15,10 @@ internal sealed class FakeChildProcess : IChildProcess
 
     public bool Killed { get; private set; }
 
+    public int? AutoExitCode { get; set; }
+
+    public Exception? StartException { get; set; }
+
     public event Action<string>? OutputLineReceived;
 
     public event Action<int>? Exited;
@@ -23,7 +27,20 @@ internal sealed class FakeChildProcess : IChildProcess
 
     public int ExitCode { get; private set; }
 
-    public void Start() => Started = true;
+    public void Start()
+    {
+        if (StartException is not null)
+        {
+            throw StartException;
+        }
+
+        Started = true;
+
+        if (AutoExitCode is int exitCode)
+        {
+            SimulateExit(exitCode);
+        }
+    }
 
     public Task WriteLineAsync(string line, CancellationToken cancellationToken = default)
     {

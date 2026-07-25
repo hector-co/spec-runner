@@ -72,3 +72,13 @@ before any GitHub/git/CLI-agent work is attempted.
   GitHub-only startup check's behavior on failure.
 - Dependencies are checked and reported in the order given in the request:
   Claude CLI, OpenSpec CLI, GitHub connection.
+- The `--version` probe processes for the Claude CLI and OpenSpec CLI are
+  launched with the current working directory (`Directory.GetCurrentDirectory()`)
+  rather than `SpecRunnerOptions.LocalRepositoryPath`, since a version check
+  doesn't need the repository clone to exist and shouldn't fail startup if
+  it doesn't yet.
+- The console line format for each dependency result is
+  `"{Name}: {OK|FAILED} - {Message}"`, replacing the previous
+  `"Repository connection: {Status} - {Message}"` line, since
+  `DependencyCheckResult` exposes a success flag rather than a
+  connection-specific status enum.
