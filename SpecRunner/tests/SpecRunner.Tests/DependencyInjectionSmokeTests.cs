@@ -27,8 +27,11 @@ public class DependencyInjectionSmokeTests
         services.AddSingleton<IStateStore>(_ => new SqliteStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.db")));
         services.AddOptions<SpecRunnerOptions>();
         services.AddOptions<CliAgentOptions>();
+        services.AddOptions<OpenSpecCliOptions>();
         services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
         services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFactory>();
+        services.AddSingleton<ICliToolAvailabilityChecker, ProcessCliToolAvailabilityChecker>();
+        services.AddSingleton<IStartupDependencyChecker, StartupDependencyChecker>();
         services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
         services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
         services.AddSingleton<IUpdateWorkflowRunner, UpdateWorkflowRunner>();
@@ -44,6 +47,8 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<IGitHubService>());
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());
         Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
+        Assert.NotNull(provider.GetRequiredService<ICliToolAvailabilityChecker>());
+        Assert.NotNull(provider.GetRequiredService<IStartupDependencyChecker>());
         Assert.NotNull(provider.GetRequiredService<IProposeWorkflowRunner>());
         Assert.NotNull(provider.GetRequiredService<IImplementWorkflowRunner>());
         Assert.NotNull(provider.GetRequiredService<IUpdateWorkflowRunner>());
