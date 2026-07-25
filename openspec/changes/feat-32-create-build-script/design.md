@@ -14,11 +14,9 @@ not collide with or disturb that file.
 - Provide a single PowerShell entry point (`build/build.ps1`) that
   publishes `SpecRunner.Console.csproj` in one or more of three named
   configurations: framework-dependent, x86, single-file.
-- Write publish output under `.specrunner` so generated artifacts stay
-  git-ignored without touching the root `.gitignore`.
-- Keep each configuration's output isolated in its own subfolder so
-  running one configuration doesn't overwrite another, and none of them
-  touch `.specrunner/state.db`.
+- Write publish output directly into `.specrunner` (no per-configuration
+  subfolders) so generated artifacts stay git-ignored without touching
+  the root `.gitignore`.
 - Make the script runnable with no required parameters (defaults to
   building all three configurations) and runnable for a single
   configuration via a parameter.
@@ -38,16 +36,17 @@ not collide with or disturb that file.
   separate from the `SpecRunner` solution folder and `openspec` planning
   folder.
 
-- **Output root**: `<repo-root>/.specrunner/publish/<configuration>/`.
-  Reusing `.specrunner` (rather than inventing a new git-ignored folder)
-  matches the literal instruction to put generated resources in a folder
-  named `.specrunner`. A `publish/<configuration>` subfolder layout keeps
-  build output from colliding with `.specrunner/state.db` and lets all
-  three configurations coexist without overwriting one another.
-  Alternative considered: publish straight into `.specrunner/` root —
-  rejected because `dotnet publish` output could shadow or be deleted
-  alongside `state.db`, and running more than one configuration would
-  overwrite the previous one's files.
+- **Output root**: `<repo-root>/.specrunner/`. Per explicit instruction,
+  all publish configurations write directly into `.specrunner` with no
+  per-configuration subfolders. This supersedes the earlier
+  `.specrunner/publish/<configuration>/` layout. Consequence: running
+  more than one configuration in the same invocation (e.g. the default
+  `All`) means later configurations' output files can overwrite earlier
+  configurations' files of the same name in `.specrunner/` — accepted as
+  intended given the explicit "no subfolders" requirement.
+  `dotnet publish` does not delete pre-existing unrelated files in the
+  output folder, so `.specrunner/state.db` is left alone even though it
+  now shares a directory with build output.
 
 - **Configuration → `dotnet publish` mapping**:
   - `FrameworkDependent`: `dotnet publish <csproj> -c Release -o <out>`
@@ -62,7 +61,7 @@ not collide with or disturb that file.
     self-contained single executable; single-file publishing requires
     both a runtime identifier and self-contained mode, so `win-x64` is
     used as the default 64-bit Windows target.
-  Each configuration publishes to its own `<out>` = `.specrunner/publish/<name>`.
+  Every configuration publishes to the same `<out>` = `.specrunner/`.
 
 - **Parameterization**: a single `-Configuration` parameter accepting
   `FrameworkDependent`, `X86`, `SingleFile`, or `All` (default `All`),
@@ -81,12 +80,20 @@ not collide with or disturb that file.
 
 - [Reusing `.specrunner` for both runtime state and build output could
   confuse contributors who expect `.specrunner` to be purely runtime
-  state] → Mitigated by scoping build output to a distinct
-  `.specrunner/publish/` subfolder and documenting the layout via
-  script comments/README note, not by mixing files at the same level.
+  state] → Accepted per explicit instruction to write output directly
+  into `.specrunner` with no subfolders; documented via script
+  comments/README note.
+- [Publishing all three configurations into the same flat `.specrunner`
+  folder means files with matching names across configurations
+  overwrite each other, so after an `All` run only the last-published
+  configuration's copies of shared filenames remain] → Accepted as the
+  direct consequence of the explicit "no subfolders" requirement; a
+  caller who needs all three outputs preserved simultaneously must run
+  each configuration separately and move/rename the output between
+  runs, which is outside this script's scope.
 - [`win-x86`/`win-x64` runtime identifiers are Windows-specific] →
   Acceptable per explicit request for PowerShell/x86; not a design
   concern for this change since no cross-platform requirement was given.
 - [No cleanup step for stale publish output between runs] → `dotnet
-  publish` overwrites files in place per configuration folder; acceptable
-  for a first version, and not required by the request.
+  publish` overwrites files in place; acceptable for a first version,
+  and not required by the request.

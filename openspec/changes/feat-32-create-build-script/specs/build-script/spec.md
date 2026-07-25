@@ -50,32 +50,39 @@ omitted.
   to `true` and SHALL set `PublishSingleFile` to `true`
 
 ### Requirement: Published output location
-Each publish configuration SHALL write its output under the
-repository-root `.specrunner` folder, in a subfolder unique to that
-configuration, so that output from one configuration does not overwrite
-another configuration's output and none of them write into or delete
+Every publish configuration SHALL write its output directly into the
+repository-root `.specrunner` folder, with no per-configuration
+subfolder. None of the configurations SHALL write into or delete
 `.specrunner/state.db`.
 
-#### Scenario: FrameworkDependent output goes to its own subfolder
+#### Scenario: FrameworkDependent output goes directly into .specrunner
 - **WHEN** the `FrameworkDependent` configuration is run
-- **THEN** published output SHALL be written under
-  `.specrunner/publish/FrameworkDependent`
+- **THEN** published output SHALL be written directly under
+  `.specrunner/`, not in a nested subfolder
 
-#### Scenario: X86 output goes to its own subfolder
+#### Scenario: X86 output goes directly into .specrunner
 - **WHEN** the `X86` configuration is run
-- **THEN** published output SHALL be written under
-  `.specrunner/publish/X86`
+- **THEN** published output SHALL be written directly under
+  `.specrunner/`, not in a nested subfolder
 
-#### Scenario: SingleFile output goes to its own subfolder
+#### Scenario: SingleFile output goes directly into .specrunner
 - **WHEN** the `SingleFile` configuration is run
-- **THEN** published output SHALL be written under
-  `.specrunner/publish/SingleFile`
+- **THEN** published output SHALL be written directly under
+  `.specrunner/`, not in a nested subfolder
 
 #### Scenario: Running all configurations does not touch the state file
 - **WHEN** `build/build.ps1` is run with no `-Configuration` argument
   while `.specrunner/state.db` exists
 - **THEN** `.specrunner/state.db` SHALL remain unmodified and undeleted
   after the script completes
+
+#### Scenario: Running all configurations leaves the last configuration's like-named files in place
+- **WHEN** `build/build.ps1` is run with no `-Configuration` argument
+- **THEN** the `FrameworkDependent`, `X86`, and `SingleFile`
+  configurations SHALL publish in order directly into `.specrunner/`,
+  and any output files that share the same name across configurations
+  SHALL end up containing the last-published (`SingleFile`)
+  configuration's content
 
 ### Requirement: Build failure stops the script
 If a `dotnet publish` invocation for any configuration fails, the build
