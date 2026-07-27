@@ -17,4 +17,6 @@ public interface IGitService
     Task CommitAsync(string message, CancellationToken cancellationToken = default);
 
     Task PushAsync(string branchName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken cancellationToken = default);
 }

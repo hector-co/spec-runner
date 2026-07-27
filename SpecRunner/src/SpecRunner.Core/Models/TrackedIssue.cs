@@ -1,6 +1,6 @@
 namespace SpecRunner.Core.Models;
 
-public record TrackedIssue(int IssueNumber, string SpecName)
+public record TrackedIssue(int? IssueNumber, string SpecName)
 {
     public string BranchName { get; init; } = string.Empty;
 

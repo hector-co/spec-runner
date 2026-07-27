@@ -14,6 +14,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
     private readonly IGitHubService _gitHub;
     private readonly IGitService _git;
     private readonly IStateStore _stateStore;
+    private readonly IPrAdoptionService _prAdoptionService;
     private readonly ICliAgentSessionFactory _cliAgentSessionFactory;
     private readonly ITasksFileReader _tasksFileReader;
     private readonly ICommandTemplateRenderer _commandTemplateRenderer;
@@ -24,6 +25,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         IGitHubService gitHub,
         IGitService git,
         IStateStore stateStore,
+        IPrAdoptionService prAdoptionService,
         ICliAgentSessionFactory cliAgentSessionFactory,
         ITasksFileReader tasksFileReader,
         ICommandTemplateRenderer commandTemplateRenderer,
@@ -33,6 +35,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         _gitHub = gitHub;
         _git = git;
         _stateStore = stateStore;
+        _prAdoptionService = prAdoptionService;
         _cliAgentSessionFactory = cliAgentSessionFactory;
         _tasksFileReader = tasksFileReader;
         _commandTemplateRenderer = commandTemplateRenderer;
@@ -111,8 +114,14 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             trackedIssue = await _stateStore.FindByPrNumberAsync(comment.PrNumber, timeoutCts.Token).ConfigureAwait(false);
             if (trackedIssue is null)
             {
-                await ReportUntrackedPrAsync(comment, timeoutCts.Token).ConfigureAwait(false);
-                return;
+                var adoptionResult = await _prAdoptionService.TryAdoptAsync(comment.PrNumber, comment.PrHeadBranch, timeoutCts.Token).ConfigureAwait(false);
+                if (!adoptionResult.Succeeded)
+                {
+                    await ReportAdoptionFailureAsync(comment, adoptionResult, timeoutCts.Token).ConfigureAwait(false);
+                    return;
+                }
+
+                trackedIssue = await _stateStore.UpsertTrackedIssueAsync(adoptionResult.TrackedIssue!, timeoutCts.Token).ConfigureAwait(false);
             }
 
             _logger.LogDebug("Starting git sync for PR #{PrNumber}", comment.PrNumber);
@@ -164,7 +173,10 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
             }
 
             _logger.LogDebug("Starting commit for PR #{PrNumber}", comment.PrNumber);
-            await _git.CommitAsync($"applying specs for #{trackedIssue.IssueNumber}", timeoutCts.Token).ConfigureAwait(false);
+            var commitMessage = trackedIssue.IssueNumber is int issueNumberForCommit
+                ? $"applying specs for #{issueNumberForCommit}"
+                : $"applying specs for PR #{comment.PrNumber}";
+            await _git.CommitAsync(commitMessage, timeoutCts.Token).ConfigureAwait(false);
             _logger.LogDebug("Finished commit for PR #{PrNumber}", comment.PrNumber);
 
             _logger.LogDebug("Starting push for PR #{PrNumber}", comment.PrNumber);
@@ -181,12 +193,11 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
                 _logger.LogDebug("Finished pull request description update for PR #{PrNumber}", comment.PrNumber);
             }
 
-            var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber);
             _logger.LogDebug("Starting pull request title update for PR #{PrNumber}", comment.PrNumber);
-            await _gitHub.UpdatePullRequestTitleAsync(
-                comment.PrNumber,
-                $"Implementations for #{trackedIssue.IssueNumber}: {issueName}",
-                timeoutCts.Token).ConfigureAwait(false);
+            var newTitle = trackedIssue.IssueNumber is int issueNumberForTitle
+                ? $"Implementations for #{issueNumberForTitle}: {PullRequestTitles.ExtractIssueName(comment.PrTitle, issueNumberForTitle)}"
+                : $"Implementations: {comment.PrTitle}";
+            await _gitHub.UpdatePullRequestTitleAsync(comment.PrNumber, newTitle, timeoutCts.Token).ConfigureAwait(false);
             _logger.LogDebug("Finished pull request title update for PR #{PrNumber}", comment.PrNumber);
 
             await ReportSuccessAsync(comment, trackedIssue, timeoutCts.Token).ConfigureAwait(false);
@@ -215,12 +226,9 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         }
     }
 
-    private async Task ReportUntrackedPrAsync(EligibleImplementComment comment, CancellationToken cancellationToken)
+    private async Task ReportAdoptionFailureAsync(EligibleImplementComment comment, PrAdoptionResult adoptionResult, CancellationToken cancellationToken)
     {
-        await _gitHub.WritePrCommentAsync(
-            comment.PrNumber,
-            "No associated spec/change was found for this PR. /implement only works on a PR opened by /propose.",
-            cancellationToken).ConfigureAwait(false);
+        await _gitHub.WritePrCommentAsync(comment.PrNumber, adoptionResult.FailureMessage, cancellationToken).ConfigureAwait(false);
         await _gitHub.AddCommentReactionAsync(comment.CommentId, "confused", cancellationToken).ConfigureAwait(false);
     }
 
@@ -230,7 +238,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         await _gitHub.WritePrCommentAsync(comment.PrNumber, "Pushed changes for this comment.", cancellationToken).ConfigureAwait(false);
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, CommentStatus.Done),
             cancellationToken).ConfigureAwait(false);
     }
@@ -265,7 +273,7 @@ public class ImplementWorkflowRunner : IImplementWorkflowRunner
         }
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, status),
             cancellationToken).ConfigureAwait(false);
     }

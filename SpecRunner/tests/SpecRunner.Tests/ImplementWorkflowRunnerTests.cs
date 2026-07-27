@@ -46,7 +46,9 @@ public class ImplementWorkflowRunnerTests : IDisposable
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new ImplementWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<ImplementWorkflowRunner>.Instance);
+        var prAdoptionService = new FakePrAdoptionService();
+
+        var runner = new ImplementWorkflowRunner(gitHub, git, stateStore, prAdoptionService, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<ImplementWorkflowRunner>.Instance);
         return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
     }
 

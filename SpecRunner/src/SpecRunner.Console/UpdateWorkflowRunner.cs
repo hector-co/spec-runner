@@ -222,7 +222,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
         await _gitHub.WritePrCommentAsync(comment.PrNumber, "Pushed changes for this comment.", cancellationToken).ConfigureAwait(false);
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, CommentStatus.Done),
             cancellationToken).ConfigureAwait(false);
     }
@@ -257,7 +257,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
         }
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, status),
             cancellationToken).ConfigureAwait(false);
     }

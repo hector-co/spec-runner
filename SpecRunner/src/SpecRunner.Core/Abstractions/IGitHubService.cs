@@ -29,4 +29,6 @@ public interface IGitHubService
     Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default);
 
     Task UpdatePullRequestTitleAsync(int prNumber, string title, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<int>> ListClosingIssueNumbersAsync(int prNumber, CancellationToken cancellationToken = default);
 }

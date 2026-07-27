@@ -1,39 +1,39 @@
 ## 1. State store: nullable issue number, PR-number-keyed comments
 
-- [ ] 1.1 Change `TrackedIssue.IssueNumber` (`SpecRunner.Core/Models/TrackedIssue.cs`) from `int` to `int?`, keeping it a positional record parameter.
-- [ ] 1.2 Update `IStateStore.UpsertCommentAsync` (`SpecRunner.Core/Abstractions/IStateStore.cs`) to take a PR number instead of an issue number as its join-key parameter.
-- [ ] 1.3 In `SqliteStateStore` (`SpecRunner.State/SqliteStateStore.cs`): change `TrackedIssues.IssueNumber` handling to allow `DBNull`, replace the column's unique index with a partial unique index (unique where not null), and update `ReadTrackedIssue`/parameter binding for the nullable column.
-- [ ] 1.4 Update `SqliteStateStore.UpsertTrackedIssueAsync`'s upsert key/lookup: continue keying inserts/updates by issue number when present, but support upserting a record whose issue number is null (keyed by PR number in that case).
-- [ ] 1.5 Update `SqliteStateStore.UpsertCommentAsync` to look up the parent `TrackedIssues.Id` by PR number instead of issue number.
-- [ ] 1.6 Add an `EnsureIssueNumberNullableAsync`-style migration step (matching the existing `EnsureBranchNameColumnAsync` pattern) that rebuilds the `TrackedIssues` table to drop the `NOT NULL` constraint on `IssueNumber` for a pre-existing database file, preserving all existing rows.
-- [ ] 1.7 Update every existing call site of `UpsertCommentAsync` across the four workflow runners to pass a PR number instead of an issue number.
+- [x] 1.1 Change `TrackedIssue.IssueNumber` (`SpecRunner.Core/Models/TrackedIssue.cs`) from `int` to `int?`, keeping it a positional record parameter.
+- [x] 1.2 Update `IStateStore.UpsertCommentAsync` (`SpecRunner.Core/Abstractions/IStateStore.cs`) to take a PR number instead of an issue number as its join-key parameter.
+- [x] 1.3 In `SqliteStateStore` (`SpecRunner.State/SqliteStateStore.cs`): change `TrackedIssues.IssueNumber` handling to allow `DBNull`, replace the column's unique index with a partial unique index (unique where not null), and update `ReadTrackedIssue`/parameter binding for the nullable column.
+- [x] 1.4 Update `SqliteStateStore.UpsertTrackedIssueAsync`'s upsert key/lookup: continue keying inserts/updates by issue number when present, but support upserting a record whose issue number is null (keyed by PR number in that case).
+- [x] 1.5 Update `SqliteStateStore.UpsertCommentAsync` to look up the parent `TrackedIssues.Id` by PR number instead of issue number.
+- [x] 1.6 Add an `EnsureIssueNumberNullableAsync`-style migration step (matching the existing `EnsureBranchNameColumnAsync` pattern) that rebuilds the `TrackedIssues` table to drop the `NOT NULL` constraint on `IssueNumber` for a pre-existing database file, preserving all existing rows.
+- [x] 1.7 Update every existing call site of `UpsertCommentAsync` across the four workflow runners to pass a PR number instead of an issue number.
 
 ## 2. Git operations: added-folder discovery
 
-- [ ] 2.1 Add `ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken)` to `IGitService` (`SpecRunner.Core/Abstractions/IGitService.cs`).
-- [ ] 2.2 Implement it in `GitService` (`SpecRunner.Git/GitService.cs`) using a git diff of `openspec/changes/` between the two refs (e.g. `git diff --name-only <base>...<head> -- openspec/changes`), reduced to distinct top-level directory names, without checking out or otherwise changing the currently checked-out branch.
-- [ ] 2.3 Surface failures through the existing `GitCommandException` pattern used by other `IGitService` members.
+- [x] 2.1 Add `ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken)` to `IGitService` (`SpecRunner.Core/Abstractions/IGitService.cs`).
+- [x] 2.2 Implement it in `GitService` (`SpecRunner.Git/GitService.cs`) using a git diff of `openspec/changes/` between the two refs (e.g. `git diff --name-only <base>...<head> -- openspec/changes`), reduced to distinct top-level directory names, without checking out or otherwise changing the currently checked-out branch.
+- [x] 2.3 Surface failures through the existing `GitCommandException` pattern used by other `IGitService` members.
 
 ## 3. GitHub operations: closing-issue discovery
 
-- [ ] 3.1 Add `ListClosingIssueNumbersAsync(int prNumber, CancellationToken)` to `IGitHubService` (`SpecRunner.Core/Abstractions/IGitHubService.cs`).
-- [ ] 3.2 Implement it in `GitHubService` (`SpecRunner.GitHub/GitHubService.cs`) as a GraphQL query for `repository(owner:, name:) { pullRequest(number: $number) { closingIssuesReferences { nodes { number } } } }`, reusing the existing GraphQL request plumbing from `MarkPrReadyForReviewAsync`.
-- [ ] 3.3 Surface a failing GraphQL call through `GitHubApiException`, matching the existing pattern.
+- [x] 3.1 Add `ListClosingIssueNumbersAsync(int prNumber, CancellationToken)` to `IGitHubService` (`SpecRunner.Core/Abstractions/IGitHubService.cs`).
+- [x] 3.2 Implement it in `GitHubService` (`SpecRunner.GitHub/GitHubService.cs`) as a GraphQL query for `repository(owner:, name:) { pullRequest(number: $number) { closingIssuesReferences { nodes { number } } } }`, reusing the existing GraphQL request plumbing from `MarkPrReadyForReviewAsync`.
+- [x] 3.3 Surface a failing GraphQL call through `GitHubApiException`, matching the existing pattern.
 
 ## 4. Shared PR-adoption logic
 
-- [ ] 4.1 Define an `IPrAdoptionService` (or similar) in `SpecRunner.Core` with a single operation that, given a PR (number, head branch), attempts adoption and returns either a resolved `TrackedIssue` ready to upsert or a typed failure describing which discovery step failed and why (no folder found / multiple folders found / multiple issues found), including any candidate names/numbers for the failure message.
-- [ ] 4.2 Implement it in `SpecRunner.Console`, composing `IGitService.FetchAsync` + `ListAddedSpecFolderNamesAsync` for folder discovery and `IGitHubService.ListClosingIssueNumbersAsync` for issue discovery, per the `pr-adoption` capability's rules (zero/one/many for each).
-- [ ] 4.3 On successful discovery, build the `TrackedIssue` from the PR's `HeadBranch`, the discovered spec name, the PR number, and the discovered issue number (nullable).
-- [ ] 4.4 Add unit tests for the adoption service covering: one folder + no issue, one folder + one issue, zero folders, multiple folders, multiple issues.
+- [x] 4.1 Define an `IPrAdoptionService` (or similar) in `SpecRunner.Core` with a single operation that, given a PR (number, head branch), attempts adoption and returns either a resolved `TrackedIssue` ready to upsert or a typed failure describing which discovery step failed and why (no folder found / multiple folders found / multiple issues found), including any candidate names/numbers for the failure message.
+- [x] 4.2 Implement it in `SpecRunner.Console`, composing `IGitService.FetchAsync` + `ListAddedSpecFolderNamesAsync` for folder discovery and `IGitHubService.ListClosingIssueNumbersAsync` for issue discovery, per the `pr-adoption` capability's rules (zero/one/many for each).
+- [x] 4.3 On successful discovery, build the `TrackedIssue` from the PR's `HeadBranch`, the discovered spec name, the PR number, and the discovered issue number (nullable).
+- [x] 4.4 Add unit tests for the adoption service covering: one folder + no issue, one folder + one issue, zero folders, multiple folders, multiple issues.
 
 ## 5. Implement-workflow integration
 
-- [ ] 5.1 In `ImplementWorkflowRunner.ProcessCommentAsync`, when `FindByPrNumberAsync` returns null, call the adoption service before falling back to `ReportUntrackedPrAsync`; on success, upsert the returned record via `IStateStore.UpsertTrackedIssueAsync` and continue with the existing tracked-PR flow.
-- [ ] 5.2 On adoption failure, post the failure's specific message (not the generic "opened by /propose" text) and add the `confused` reaction, reusing the existing refusal mechanics.
-- [ ] 5.3 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"applying specs for PR #{PrNumber}"` in that case.
-- [ ] 5.4 Update the PR title rewrite to branch on `trackedIssue.IssueNumber is null`: skip the `#{issue}: ` marker logic and use `"Implementations: {currentTitle}"` in that case. Adjust or extend `PullRequestTitles` (`SpecRunner.Console/PullRequestTitles.cs`) if it needs a no-issue code path.
-- [ ] 5.5 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
+- [x] 5.1 In `ImplementWorkflowRunner.ProcessCommentAsync`, when `FindByPrNumberAsync` returns null, call the adoption service before falling back to `ReportUntrackedPrAsync`; on success, upsert the returned record via `IStateStore.UpsertTrackedIssueAsync` and continue with the existing tracked-PR flow.
+- [x] 5.2 On adoption failure, post the failure's specific message (not the generic "opened by /propose" text) and add the `confused` reaction, reusing the existing refusal mechanics.
+- [x] 5.3 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"applying specs for PR #{PrNumber}"` in that case.
+- [x] 5.4 Update the PR title rewrite to branch on `trackedIssue.IssueNumber is null`: skip the `#{issue}: ` marker logic and use `"Implementations: {currentTitle}"` in that case. Adjust or extend `PullRequestTitles` (`SpecRunner.Console/PullRequestTitles.cs`) if it needs a no-issue code path.
+- [x] 5.5 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
 
 ## 6. Update-workflow integration
 

@@ -37,4 +37,9 @@ public class FakeGitHubService : IGitHubService
     public Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task UpdatePullRequestTitleAsync(int prNumber, string title, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public IReadOnlyList<int> ClosingIssueNumbersResult { get; set; } = Array.Empty<int>();
+
+    public Task<IReadOnlyList<int>> ListClosingIssueNumbersAsync(int prNumber, CancellationToken cancellationToken = default)
+        => Task.FromResult(ClosingIssueNumbersResult);
 }

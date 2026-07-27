@@ -62,4 +62,12 @@ public class RecordingGitService : IGitService
         Calls.Add($"Push:{branchName}");
         return Task.CompletedTask;
     }
+
+    public IReadOnlyList<string> AddedSpecFolderNamesResult { get; set; } = Array.Empty<string>();
+
+    public Task<IReadOnlyList<string>> ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken cancellationToken = default)
+    {
+        Calls.Add($"ListAddedSpecFolderNames:{baseBranch}...{headBranch}");
+        return Task.FromResult(AddedSpecFolderNamesResult);
+    }
 }

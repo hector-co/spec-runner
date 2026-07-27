@@ -58,37 +58,67 @@ public class SqliteStateStore : IStateStore
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
-        const string sql = """
-            INSERT INTO TrackedIssues (IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
-            VALUES ($issueNumber, $specName, $branchName, $prNumber, $now, $now)
-            ON CONFLICT(IssueNumber) DO UPDATE SET
-                SpecName = excluded.SpecName,
-                BranchName = excluded.BranchName,
-                PrNumber = excluded.PrNumber,
-                UpdatedAtUtc = excluded.UpdatedAtUtc
-            """;
+        var existingId = issue.IssueNumber is int issueNumber
+            ? await FindIdAsync(connection, "IssueNumber", issueNumber, cancellationToken)
+            : issue.PrNumber is int prNumberForLookup
+                ? await FindIdAsync(connection, "PrNumber", prNumberForLookup, cancellationToken)
+                : null;
 
-        await using (var command = connection.CreateCommand())
+        long id;
+        if (existingId is long foundId)
         {
-            command.CommandText = sql;
-            command.Parameters.AddWithValue("$issueNumber", issue.IssueNumber);
+            id = foundId;
+
+            const string updateSql = """
+                UPDATE TrackedIssues
+                SET IssueNumber = $issueNumber,
+                    SpecName = $specName,
+                    BranchName = $branchName,
+                    PrNumber = $prNumber,
+                    UpdatedAtUtc = $now
+                WHERE Id = $id
+                """;
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = updateSql;
+            command.Parameters.AddWithValue("$issueNumber", (object?)issue.IssueNumber ?? DBNull.Value);
             command.Parameters.AddWithValue("$specName", issue.SpecName);
             command.Parameters.AddWithValue("$branchName", issue.BranchName);
             command.Parameters.AddWithValue("$prNumber", (object?)issue.PrNumber ?? DBNull.Value);
             command.Parameters.AddWithValue("$now", now.ToString("O"));
+            command.Parameters.AddWithValue("$id", id);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
+        else
+        {
+            const string insertSql = """
+                INSERT INTO TrackedIssues (IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ($issueNumber, $specName, $branchName, $prNumber, $now, $now)
+                """;
 
-        const string selectSql = """
-            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc
-            FROM TrackedIssues
-            WHERE IssueNumber = $value
-            """;
-        var result = await LoadIssueAsync(connection, selectSql, "$value", issue.IssueNumber, cancellationToken);
-        return result ?? throw new InvalidOperationException($"Upserted tracked issue {issue.IssueNumber} could not be reloaded.");
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = insertSql;
+                command.Parameters.AddWithValue("$issueNumber", (object?)issue.IssueNumber ?? DBNull.Value);
+                command.Parameters.AddWithValue("$specName", issue.SpecName);
+                command.Parameters.AddWithValue("$branchName", issue.BranchName);
+                command.Parameters.AddWithValue("$prNumber", (object?)issue.PrNumber ?? DBNull.Value);
+                command.Parameters.AddWithValue("$now", now.ToString("O"));
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT last_insert_rowid()";
+                id = (long)(await command.ExecuteScalarAsync(cancellationToken))!;
+            }
+        }
+
+        var result = await LoadIssueByIdAsync(connection, id, cancellationToken);
+        return result ?? throw new InvalidOperationException($"Upserted tracked issue (id {id}) could not be reloaded.");
     }
 
-    public async Task<TrackedComment> UpsertCommentAsync(int issueNumber, TrackedComment comment, CancellationToken cancellationToken = default)
+    public async Task<TrackedComment> UpsertCommentAsync(int prNumber, TrackedComment comment, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow;
@@ -96,12 +126,12 @@ public class SqliteStateStore : IStateStore
         long trackedIssueId;
         await using (var lookupCommand = connection.CreateCommand())
         {
-            lookupCommand.CommandText = "SELECT Id FROM TrackedIssues WHERE IssueNumber = $issueNumber";
-            lookupCommand.Parameters.AddWithValue("$issueNumber", issueNumber);
+            lookupCommand.CommandText = "SELECT Id FROM TrackedIssues WHERE PrNumber = $prNumber";
+            lookupCommand.Parameters.AddWithValue("$prNumber", prNumber);
             var result = await lookupCommand.ExecuteScalarAsync(cancellationToken);
             if (result is not long id)
             {
-                throw new InvalidOperationException($"No tracked issue found for issue number {issueNumber}.");
+                throw new InvalidOperationException($"No tracked issue found for PR number {prNumber}.");
             }
 
             trackedIssueId = id;
@@ -147,16 +177,13 @@ public class SqliteStateStore : IStateStore
         const string sql = """
             CREATE TABLE IF NOT EXISTS TrackedIssues (
                 Id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                IssueNumber   INTEGER NOT NULL UNIQUE,
+                IssueNumber   INTEGER NULL,
                 SpecName      TEXT    NOT NULL,
                 BranchName    TEXT    NOT NULL DEFAULT '',
                 PrNumber      INTEGER NULL,
                 CreatedAtUtc  TEXT    NOT NULL,
                 UpdatedAtUtc  TEXT    NOT NULL
             );
-
-            CREATE UNIQUE INDEX IF NOT EXISTS IX_TrackedIssues_PrNumber
-                ON TrackedIssues (PrNumber) WHERE PrNumber IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS TrackedComments (
                 Id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +201,8 @@ public class SqliteStateStore : IStateStore
 
         await ExecuteNonQueryAsync(connection, sql, cancellationToken);
         await EnsureBranchNameColumnAsync(connection, cancellationToken);
+        await EnsureIssueNumberNullableAsync(connection, cancellationToken);
+        await EnsureIndexesAsync(connection, cancellationToken);
     }
 
     private static async Task EnsureBranchNameColumnAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -192,6 +221,72 @@ public class SqliteStateStore : IStateStore
             connection,
             "ALTER TABLE TrackedIssues ADD COLUMN BranchName TEXT NOT NULL DEFAULT ''",
             cancellationToken);
+    }
+
+    private static async Task EnsureIssueNumberNullableAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('TrackedIssues') WHERE name = 'IssueNumber' AND \"notnull\" = 1";
+            var notNullColumnCount = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+            if (notNullColumnCount == 0)
+            {
+                return;
+            }
+        }
+
+        const string rebuildSql = """
+            CREATE TABLE TrackedIssues_New (
+                Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                IssueNumber   INTEGER NULL,
+                SpecName      TEXT    NOT NULL,
+                BranchName    TEXT    NOT NULL DEFAULT '',
+                PrNumber      INTEGER NULL,
+                CreatedAtUtc  TEXT    NOT NULL,
+                UpdatedAtUtc  TEXT    NOT NULL
+            );
+
+            INSERT INTO TrackedIssues_New (Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
+            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc FROM TrackedIssues;
+
+            DROP TABLE TrackedIssues;
+
+            ALTER TABLE TrackedIssues_New RENAME TO TrackedIssues;
+            """;
+
+        await ExecuteNonQueryAsync(connection, rebuildSql, cancellationToken);
+    }
+
+    private static async Task EnsureIndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_TrackedIssues_PrNumber
+                ON TrackedIssues (PrNumber) WHERE PrNumber IS NOT NULL;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_TrackedIssues_IssueNumber
+                ON TrackedIssues (IssueNumber) WHERE IssueNumber IS NOT NULL;
+            """;
+
+        await ExecuteNonQueryAsync(connection, sql, cancellationToken);
+    }
+
+    private static async Task<long?> FindIdAsync(SqliteConnection connection, string columnName, int value, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT Id FROM TrackedIssues WHERE {columnName} = $value";
+        command.Parameters.AddWithValue("$value", value);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is long id ? id : null;
+    }
+
+    private static Task<TrackedIssue?> LoadIssueByIdAsync(SqliteConnection connection, long id, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT Id, IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc
+            FROM TrackedIssues
+            WHERE Id = $value
+            """;
+        return LoadIssueAsync(connection, sql, "$value", id, cancellationToken);
     }
 
     private static async Task ExecuteNonQueryAsync(SqliteConnection connection, string sql, CancellationToken cancellationToken)
@@ -276,7 +371,7 @@ public class SqliteStateStore : IStateStore
 
     private static TrackedIssue ReadTrackedIssue(SqliteDataReader reader)
     {
-        var issueNumber = reader.GetInt32(1);
+        var issueNumber = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1);
         var specName = reader.GetString(2);
         var branchName = reader.GetString(3);
         var prNumber = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4);

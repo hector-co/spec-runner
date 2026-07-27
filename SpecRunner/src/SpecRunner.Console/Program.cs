@@ -40,6 +40,7 @@ builder.Services.AddSingleton<ICliAgentSessionFactory, ClaudeCliAgentSessionFact
 builder.Services.AddHttpClient<IRepositoryConnectionTester, HttpRepositoryConnectionTester>();
 builder.Services.AddSingleton<ICliToolAvailabilityChecker, ProcessCliToolAvailabilityChecker>();
 builder.Services.AddSingleton<IStartupDependencyChecker, StartupDependencyChecker>();
+builder.Services.AddSingleton<IPrAdoptionService, PrAdoptionService>();
 builder.Services.AddSingleton<IProposeWorkflowRunner, ProposeWorkflowRunner>();
 builder.Services.AddSingleton<IImplementWorkflowRunner, ImplementWorkflowRunner>();
 builder.Services.AddSingleton<IUpdateWorkflowRunner, UpdateWorkflowRunner>();

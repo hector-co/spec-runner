@@ -12,5 +12,5 @@ public interface IStateStore
 
     Task<TrackedIssue> UpsertTrackedIssueAsync(TrackedIssue issue, CancellationToken cancellationToken = default);
 
-    Task<TrackedComment> UpsertCommentAsync(int issueNumber, TrackedComment comment, CancellationToken cancellationToken = default);
+    Task<TrackedComment> UpsertCommentAsync(int prNumber, TrackedComment comment, CancellationToken cancellationToken = default);
 }

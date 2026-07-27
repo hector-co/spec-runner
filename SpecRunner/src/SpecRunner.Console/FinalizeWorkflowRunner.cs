@@ -180,7 +180,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             await _gitHub.UpdatePullRequestDescriptionAsync(comment.PrNumber, finalBody, timeoutCts.Token).ConfigureAwait(false);
             _logger.LogDebug("Finished pull request description update for PR #{PrNumber}", comment.PrNumber);
 
-            var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber);
+            var issueName = PullRequestTitles.ExtractIssueName(comment.PrTitle, trackedIssue.IssueNumber ?? 0);
             _logger.LogDebug("Starting pull request title update for PR #{PrNumber}", comment.PrNumber);
             await _gitHub.UpdatePullRequestTitleAsync(
                 comment.PrNumber,
@@ -234,7 +234,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         await _gitHub.WritePrCommentAsync(comment.PrNumber, "Finalized this change and marked the PR ready for review.", cancellationToken).ConfigureAwait(false);
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, CommentStatus.Done),
             cancellationToken).ConfigureAwait(false);
     }
@@ -269,7 +269,7 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
         }
 
         await _stateStore.UpsertCommentAsync(
-            trackedIssue.IssueNumber,
+            comment.PrNumber,
             new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, status),
             cancellationToken).ConfigureAwait(false);
     }
