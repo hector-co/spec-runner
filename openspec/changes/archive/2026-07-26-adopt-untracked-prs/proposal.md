@@ -94,3 +94,11 @@ first time an eligible comment is processed, instead of refusing it forever.
   `FinalizeWorkflowRunner` gain adoption logic and null-issue-number
   formatting branches; `PullRequestTitles` gains a no-issue title path.
 - Existing tracked-PR behavior (records created by `/propose`) is unchanged.
+
+## Assumptions
+
+- Archived via an unattended run. All artifacts and tasks were already
+  complete at archive time, so no task checkboxes needed updating. Delta
+  specs were unsynced against `openspec/specs/`, so — per the archive
+  skill's recommended default — they were synced into the main specs before
+  archiving rather than prompting for confirmation.
