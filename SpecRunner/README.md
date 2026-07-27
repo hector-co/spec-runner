@@ -152,29 +152,38 @@ over the configured repository's open pull requests, driving further work on a P
    concurrently with `propose-workflow`, since all comments share the one local clone).
    Processing starts by adding an `eyes` reaction, then resolves the PR's associated spec
    via `IStateStore.FindByPrNumberAsync`:
-   - **Untracked PR** (no record - the PR wasn't opened by `/propose`, or its record was
-     lost): posts a reply explaining that no associated spec/change was found and adds a
-     `confused` reaction. No git operation, CLI-agent session, or state-store write
-     happens for this comment.
-   - **Tracked PR**: fetches, switches to, and hard-resets the PR's existing head branch
-     to `origin/{branch}` (never `BaseBranchName` - the branch already exists), then runs
-     the CLI coding agent with an `/opsx-apply {spec-name} {instructions}` prompt (sent as
-     a single value wrapped in escaped double quotes, matching `propose-workflow`'s
-     `/opsx-propose` prompt-quoting convention) using the tracked record's spec name. On
-     success it commits with message `"applying specs for #{issue-number}"` (the issue
-     number from the tracked record) and pushes the existing branch - no new branch or PR
-     is created - then adds a `+1` reaction (the closest available GitHub reaction to a
-     checkmark) and a reply confirming the push.
+   - **Untracked PR** (no record for the PR's number): attempts to adopt the PR before
+     refusing it. Adoption diffs `openspec/changes/` between `BaseBranchName` and the PR's
+     head branch for exactly one added spec/change folder, and queries GitHub's
+     `closingIssuesReferences` for the PR to find zero or one linked issue. If discovery is
+     unambiguous, a tracked record is upserted (branch name read directly from the PR, the
+     discovered spec folder, the PR number, and the linked issue number if any) and
+     processing continues exactly as it would for an already-tracked PR. If discovery finds
+     no spec folder, multiple candidate folders, or multiple linked issues, a reply naming
+     the specific problem is posted and a `confused` reaction is added; no git operation,
+     CLI-agent session, or state-store write happens for this comment.
+   - **Tracked PR** (already tracked, or just adopted above): fetches, switches to, and
+     hard-resets the PR's existing head branch to `origin/{branch}` (never
+     `BaseBranchName` - the branch already exists), then runs the CLI coding agent with an
+     `/opsx-apply {spec-name} {instructions}` prompt (sent as a single value wrapped in
+     escaped double quotes, matching `propose-workflow`'s `/opsx-propose` prompt-quoting
+     convention) using the tracked record's spec name. On success it commits with message
+     `"applying specs for #{issue-number}"` when the tracked record has an issue number, or
+     `"applying specs for PR #{pr-number}"` when it does not (an adopted PR with no linked
+     issue), and pushes the existing branch - no new branch or PR is created - then adds a
+     `+1` reaction (the closest available GitHub reaction to a checkmark) and a reply
+     confirming the push.
 4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
    (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
    human-readable reply instead of a raw exception, and processing moves on to the next
    eligible comment rather than aborting the scan pass.
 
-A successful or errored outcome on a tracked PR is also recorded in the SQLite state store
-under the tracked record's issue number. An untracked PR's outcome is not recorded in the
-state store (there is no issue number to key it under) - the `confused` reaction on the
-comment itself is what prevents it from being reprocessed on the next scan pass. This
-change only handles general PR conversation comments other than the `/update` trigger
+A successful or errored outcome on a tracked PR (including one just adopted) is also
+recorded in the SQLite state store under the tracked record's PR number. A PR whose
+adoption attempt failed has no tracked record and so has no comment outcome recorded either
+- the `confused` reaction on the comment itself is what prevents it from being reprocessed
+on the next scan pass. This change only handles general PR conversation comments other than
+the `/update` trigger
 (see below); marking a PR ready for review and PR review (inline code) comments are out
 of scope.
 
@@ -198,28 +207,82 @@ a new requirement or piece of information without editing the OpenSpec change by
    concurrently with `propose-workflow` or `implement-workflow`, since all three share the
    one local clone). Processing starts by adding an `eyes` reaction, then resolves the PR's
    associated spec via `IStateStore.FindByPrNumberAsync`:
-   - **Untracked PR** (no record - the PR wasn't opened by `/propose`, or its record was
-     lost): posts a reply explaining that no associated spec/change was found and adds a
-     `confused` reaction. No git operation, CLI-agent session, or state-store write
-     happens for this comment.
-   - **Tracked PR**: fetches, switches to, and hard-resets the PR's existing head branch to
-     `origin/{branch}`, then runs the CLI coding agent with a plain natural-language
-     prompt - not an `/opsx-*` slash command - of the form `Update the OpenSpec change
-     "{spec-name}" to reflect the following new requirement/information:\n{instructions}`
-     (sent as a single value wrapped in escaped double quotes, matching `propose-workflow`
-     and `implement-workflow`'s prompt-quoting convention), using the tracked record's spec
-     name. On success it commits with message `"updating specs for #{issue-number}"` (the
-     issue number from the tracked record) and pushes the existing branch - no new branch
-     or PR is created - then adds a `+1` reaction and a reply confirming the push.
+   - **Untracked PR** (no record for the PR's number): attempts to adopt the PR before
+     refusing it, the same adoption attempt `implement-workflow` runs (spec-folder diff
+     against `BaseBranchName` plus GitHub's `closingIssuesReferences`, described above). On
+     success a tracked record is upserted and processing continues exactly as for an
+     already-tracked PR; on failure a reply naming the specific problem is posted and a
+     `confused` reaction is added, with no git operation, CLI-agent session, or state-store
+     write for this comment.
+   - **Tracked PR** (already tracked, or just adopted above): fetches, switches to, and
+     hard-resets the PR's existing head branch to `origin/{branch}`, then runs the CLI
+     coding agent with a plain natural-language prompt - not an `/opsx-*` slash command - of
+     the form `Update the OpenSpec change "{spec-name}" to reflect the following new
+     requirement/information:\n{instructions}` (sent as a single value wrapped in escaped
+     double quotes, matching `propose-workflow` and `implement-workflow`'s prompt-quoting
+     convention), using the tracked record's spec name. On success it commits with message
+     `"updating specs for #{issue-number}"` when the tracked record has an issue number, or
+     `"updating specs for PR #{pr-number}"` when it does not, and pushes the existing
+     branch - no new branch or PR is created - then adds a `+1` reaction and a reply
+     confirming the push.
 4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
    (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
    human-readable reply instead of a raw exception, and processing moves on to the next
    eligible comment rather than aborting the scan pass.
 
 A successful or errored outcome on a tracked PR is also recorded in the SQLite state store
-under the tracked record's issue number, the same way `implement-workflow` records its
-outcomes. This change only handles the `/update` trigger; `/archive` and PR review (inline
+under the tracked record's PR number, the same way `implement-workflow` records its
+outcomes. This change only handles the `/update` trigger; `/finalize` and PR review (inline
 code) comments are out of scope.
+
+## Finalize workflow
+
+After the `update-workflow` scan pass, `SpecRunner.Console` runs a `finalize-workflow` scan
+pass (`IFinalizeWorkflowRunner.RunOnceAsync`, implemented by `FinalizeWorkflowRunner`) over
+the same set of open pull requests, wrapping up a change and marking its PR ready for
+review:
+
+1. It lists open PRs and, for each, reads its general conversation comments via
+   `ReadPrCommentsAsync`, treating a comment as an eligible trigger when its body, trimmed
+   of leading/trailing whitespace, is exactly `/finalize` or starts with `/finalize`
+   followed by whitespace (so `/finalized` or `/finalize` used mid-sentence does not
+   trigger). The text after the token (and its separating whitespace) becomes that
+   comment's instructions.
+2. A comment already carrying an `eyes`, `+1`, or `confused` reaction from the
+   authenticated bot identity is skipped, mirroring the other workflows' own skip rule.
+3. Each remaining eligible comment is processed in turn (never concurrently, and never
+   concurrently with the other three workflows, since all four share the one local clone).
+   Processing starts by adding an `eyes` reaction, then resolves the PR's associated spec
+   via `IStateStore.FindByPrNumberAsync`:
+   - **Untracked PR** (no record for the PR's number): attempts to adopt the PR before
+     refusing it, the same adoption attempt `implement-workflow` and `update-workflow` run
+     (spec-folder diff against `BaseBranchName` plus GitHub's `closingIssuesReferences`).
+     On success a tracked record is upserted and processing continues exactly as for an
+     already-tracked PR; on failure a reply naming the specific problem is posted and a
+     `confused` reaction is added, with no git operation, CLI-agent session, or
+     state-store write for this comment.
+   - **Tracked PR** (already tracked, or just adopted above): fetches, switches to, and
+     hard-resets the PR's existing head branch to `origin/{branch}`, then runs the CLI
+     coding agent with an `` openspec archive "{spec-name}" --yes `` prompt using the
+     tracked record's spec name. On success it commits with message `"finalizing specs for
+     #{issue-number}"` when the tracked record has an issue number, or `"finalizing specs
+     for PR #{pr-number}"` when it does not, and pushes the existing branch - no new branch
+     or PR is created. It then reads the change's archived `tasks.md` content (falling back
+     to an empty prefix if none is found) and updates the PR's description to that content,
+     appending `"\n\nCloses #{issue-number}"` when the tracked record has an issue number
+     (omitted entirely otherwise), renames the PR's title to its finalized form when the
+     tracked record has an issue number (left unchanged otherwise), and marks the PR ready
+     for review via `IGitHubService.MarkPrReadyForReviewAsync`, then adds a `+1` reaction
+     and a reply confirming the finalize.
+4. Any error, or exceeding `SpecRunnerOptions.TaskTimeout` for the whole per-comment cycle
+   (stopping any in-flight CLI-agent session), adds a `confused` reaction and a
+   human-readable reply instead of a raw exception, and processing moves on to the next
+   eligible comment rather than aborting the scan pass.
+
+A successful or errored outcome on a tracked PR is also recorded in the SQLite state store
+under the tracked record's PR number, the same way the other workflows record their
+outcomes. This change only handles the `/finalize` trigger; PR review (inline code)
+comments are out of scope.
 
 ## Status
 
@@ -243,19 +306,19 @@ running any scan pass.
 
 If all three checks succeed, the process enters a polling loop: it runs one
 `propose-workflow` scan pass to completion, then one `implement-workflow` scan pass to
-completion, then one `update-workflow` scan pass to completion, waits
-`SpecRunnerOptions.PollingInterval`, and repeats, indefinitely - it no longer exits after a
-single pass. The three scan passes always run sequentially, never concurrently, since they
-share the same local clone. An unhandled exception from any scan pass is logged and does
-not stop the process or prevent the other scan passes from running that same cycle; the
-loop simply waits out `PollingInterval` and tries again. Sending `SIGINT` (Ctrl+C) or
-`SIGTERM` requests a graceful shutdown: an in-progress scan pass is allowed to finish (no
-scan pass is cancelled mid-flight), no further `propose-workflow`, `implement-workflow`, or
-`update-workflow` pass is started, and the process then exits with code `0`. A shutdown
-signal received while waiting out `PollingInterval` ends the wait immediately instead of
-waiting out the full interval. Because the process now runs continuously, running it
-expects an external supervisor (service manager, container restart policy) rather than a
-one-shot invocation.
+completion, then one `update-workflow` scan pass to completion, then one
+`finalize-workflow` scan pass to completion, waits `SpecRunnerOptions.PollingInterval`, and
+repeats, indefinitely - it no longer exits after a single pass. The four scan passes always
+run sequentially, never concurrently, since they share the same local clone. An unhandled
+exception from any scan pass is logged and does not stop the process or prevent the other
+scan passes from running that same cycle; the loop simply waits out `PollingInterval` and
+tries again. Sending `SIGINT` (Ctrl+C) or `SIGTERM` requests a graceful shutdown: an
+in-progress scan pass is allowed to finish (no scan pass is cancelled mid-flight), no
+further `propose-workflow`, `implement-workflow`, `update-workflow`, or `finalize-workflow`
+pass is started, and the process then exits with code `0`. A shutdown signal received while
+waiting out `PollingInterval` ends the wait immediately instead of waiting out the full
+interval. Because the process now runs continuously, running it expects an external
+supervisor (service manager, container restart policy) rather than a one-shot invocation.
 
 ## Logging
 

@@ -186,6 +186,83 @@ public class GitServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ListAddedSpecFolderNamesAsyncReturnsEmptyWhenNoFolderWasAdded()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "contributor/no-spec-changes");
+        File.WriteAllText(Path.Combine(_peerPath, "unrelated.txt"), "unrelated change");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "unrelated commit");
+        RunGit(_peerPath, "push", "origin", "contributor/no-spec-changes");
+
+        await _gitService.FetchAsync("contributor/no-spec-changes");
+        var folders = await _gitService.ListAddedSpecFolderNamesAsync("main", "contributor/no-spec-changes");
+
+        Assert.Empty(folders);
+    }
+
+    [Fact]
+    public async Task ListAddedSpecFolderNamesAsyncReturnsSingleAddedFolder()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "contributor/csv-export");
+        Directory.CreateDirectory(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export"));
+        File.WriteAllText(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export", "proposal.md"), "proposal");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "add csv export proposal");
+        RunGit(_peerPath, "push", "origin", "contributor/csv-export");
+
+        await _gitService.FetchAsync("contributor/csv-export");
+        var folders = await _gitService.ListAddedSpecFolderNamesAsync("main", "contributor/csv-export");
+
+        Assert.Equal(new[] { "add-csv-export" }, folders);
+    }
+
+    [Fact]
+    public async Task ListAddedSpecFolderNamesAsyncReturnsAllCandidatesWhenMultipleFoldersAdded()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "contributor/exports");
+        Directory.CreateDirectory(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export"));
+        File.WriteAllText(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export", "proposal.md"), "proposal");
+        Directory.CreateDirectory(Path.Combine(_peerPath, "openspec", "changes", "add-pdf-export"));
+        File.WriteAllText(Path.Combine(_peerPath, "openspec", "changes", "add-pdf-export", "proposal.md"), "proposal");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "add csv and pdf export proposals");
+        RunGit(_peerPath, "push", "origin", "contributor/exports");
+
+        await _gitService.FetchAsync("contributor/exports");
+        var folders = await _gitService.ListAddedSpecFolderNamesAsync("main", "contributor/exports");
+
+        Assert.Equal(new[] { "add-csv-export", "add-pdf-export" }, folders.OrderBy(f => f, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task ListAddedSpecFolderNamesAsyncLeavesCheckedOutBranchUnchanged()
+    {
+        RunGit(_root, "clone", _originPath, _peerPath);
+        RunGit(_peerPath, "config", "user.email", "peer@example.com");
+        RunGit(_peerPath, "config", "user.name", "Peer User");
+        RunGit(_peerPath, "checkout", "-b", "contributor/csv-export");
+        Directory.CreateDirectory(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export"));
+        File.WriteAllText(Path.Combine(_peerPath, "openspec", "changes", "add-csv-export", "proposal.md"), "proposal");
+        RunGit(_peerPath, "add", "-A");
+        RunGit(_peerPath, "commit", "-m", "add csv export proposal");
+        RunGit(_peerPath, "push", "origin", "contributor/csv-export");
+
+        await _gitService.FetchAsync("contributor/csv-export");
+        await _gitService.ListAddedSpecFolderNamesAsync("main", "contributor/csv-export");
+
+        Assert.Equal("main", RunGitCapture(_localPath, "rev-parse", "--abbrev-ref", "HEAD").Trim());
+    }
+
+    [Fact]
     public async Task FailingGitCommandThrowsGitCommandExceptionWithStandardError()
     {
         var exception = await Assert.ThrowsAsync<GitCommandException>(

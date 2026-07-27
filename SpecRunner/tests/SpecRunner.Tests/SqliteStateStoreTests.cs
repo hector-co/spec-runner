@@ -199,4 +199,48 @@ public class SqliteStateStoreTests : IDisposable
         var comment = Assert.Single(found!.Comments);
         Assert.Equal(9001, comment.CommentId);
     }
+
+    [Fact]
+    public async Task PreMigrationDatabaseFileWithNotNullIssueNumberIsUpgradedInPlace()
+    {
+        Directory.CreateDirectory(_tempDirectory);
+        var connectionString = new SqliteConnectionStringBuilder { DataSource = _filePath }.ToString();
+        await using (var connection = new SqliteConnection(connectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE TrackedIssues (
+                    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    IssueNumber   INTEGER NOT NULL UNIQUE,
+                    SpecName      TEXT    NOT NULL,
+                    BranchName    TEXT    NOT NULL DEFAULT '',
+                    PrNumber      INTEGER NULL,
+                    CreatedAtUtc  TEXT    NOT NULL,
+                    UpdatedAtUtc  TEXT    NOT NULL
+                );
+
+                INSERT INTO TrackedIssues (IssueNumber, SpecName, BranchName, PrNumber, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (45, '45-add-login-page', 'feature/45', 12, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        SqliteConnection.ClearAllPools();
+
+        var store = new SqliteStateStore(_filePath);
+        var existing = await store.FindByIssueNumberAsync(45);
+
+        Assert.NotNull(existing);
+        Assert.Equal(45, existing!.IssueNumber);
+        Assert.Equal("feature/45", existing.BranchName);
+
+        var adopted = await store.UpsertTrackedIssueAsync(
+            new TrackedIssue(null, "add-csv-export") { PrNumber = 13, BranchName = "contributor/csv-export" });
+
+        Assert.Null(adopted.IssueNumber);
+        var found = await store.FindByPrNumberAsync(13);
+        Assert.NotNull(found);
+        Assert.Null(found!.IssueNumber);
+    }
 }

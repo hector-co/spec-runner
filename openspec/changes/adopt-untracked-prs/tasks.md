@@ -37,26 +37,26 @@
 
 ## 6. Update-workflow integration
 
-- [ ] 6.1 Apply the same adoption-before-refusal change as 5.1/5.2 to `UpdateWorkflowRunner.ProcessCommentAsync`.
-- [ ] 6.2 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"updating specs for PR #{PrNumber}"` in that case.
-- [ ] 6.3 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
+- [x] 6.1 Apply the same adoption-before-refusal change as 5.1/5.2 to `UpdateWorkflowRunner.ProcessCommentAsync`.
+- [x] 6.2 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"updating specs for PR #{PrNumber}"` in that case.
+- [x] 6.3 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
 
 ## 7. Finalize-workflow integration
 
-- [ ] 7.1 Apply the same adoption-before-refusal change as 5.1/5.2 to `FinalizeWorkflowRunner.ProcessCommentAsync`.
-- [ ] 7.2 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"finalizing specs for PR #{PrNumber}"` in that case.
-- [ ] 7.3 Update the final PR body construction to omit the `"\n\nCloses #{IssueNumber}"` suffix entirely when `trackedIssue.IssueNumber is null`.
-- [ ] 7.4 Update the PR title rewrite to branch on `trackedIssue.IssueNumber is null`: when null, leave the title unchanged (skip calling `UpdatePullRequestTitleAsync` for the rename step).
-- [ ] 7.5 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
+- [x] 7.1 Apply the same adoption-before-refusal change as 5.1/5.2 to `FinalizeWorkflowRunner.ProcessCommentAsync`.
+- [x] 7.2 Update the commit-message construction to branch on `trackedIssue.IssueNumber is null`, using `"finalizing specs for PR #{PrNumber}"` in that case.
+- [x] 7.3 Update the final PR body construction to omit the `"\n\nCloses #{IssueNumber}"` suffix entirely when `trackedIssue.IssueNumber is null`.
+- [x] 7.4 Update the PR title rewrite to branch on `trackedIssue.IssueNumber is null`: when null, leave the title unchanged (skip calling `UpdatePullRequestTitleAsync` for the rename step).
+- [x] 7.5 Update `ReportSuccessAsync`/`ReportTimeoutAsync`/`ReportErrorAsync`/`RecordCommentStatusAsync` to call `UpsertCommentAsync` with the tracked record's PR number instead of issue number.
 
 ## 8. Tests
 
-- [ ] 8.1 Update `SqliteStateStore` tests for a nullable `IssueNumber`: round-trip a record with no issue number, upsert comments keyed by PR number, and migrate a pre-existing `NOT NULL` database file in place.
-- [ ] 8.2 Add `GitService` tests for `ListAddedSpecFolderNamesAsync` covering zero/one/multiple added folders and that the checked-out branch is left unchanged.
-- [ ] 8.3 Add `GitHubService` tests (or fakes) for `ListClosingIssueNumbersAsync` covering zero/one/multiple linked issues and a failing GraphQL response.
-- [ ] 8.4 Add `ImplementWorkflowRunner`/`UpdateWorkflowRunner`/`FinalizeWorkflowRunner` tests covering: successful adoption with an issue, successful adoption without an issue, adoption refusal for no folder found, and adoption refusal for multiple folders/issues found.
-- [ ] 8.5 Add regression tests confirming a `/propose`-created (already-tracked) PR's commit messages, PR title, and PR body are byte-for-byte unchanged by this change.
+- [x] 8.1 Update `SqliteStateStore` tests for a nullable `IssueNumber`: round-trip a record with no issue number, upsert comments keyed by PR number, and migrate a pre-existing `NOT NULL` database file in place.
+- [x] 8.2 Add `GitService` tests for `ListAddedSpecFolderNamesAsync` covering zero/one/multiple added folders and that the checked-out branch is left unchanged.
+- [x] 8.3 Add `GitHubService` tests (or fakes) for `ListClosingIssueNumbersAsync` covering zero/one/multiple linked issues and a failing GraphQL response.
+- [x] 8.4 Add `ImplementWorkflowRunner`/`UpdateWorkflowRunner`/`FinalizeWorkflowRunner` tests covering: successful adoption with an issue, successful adoption without an issue, adoption refusal for no folder found, and adoption refusal for multiple folders/issues found.
+- [x] 8.5 Add regression tests confirming a `/propose`-created (already-tracked) PR's commit messages, PR title, and PR body are byte-for-byte unchanged by this change.
 
 ## 9. Documentation
 
-- [ ] 9.1 Update `SpecRunner/README.md`'s "Untracked PR" sections for `implement-workflow`, `update-workflow`, and `finalize-workflow` to describe the adoption attempt and its possible outcomes, replacing the current "the PR wasn't opened by /propose" framing.
+- [x] 9.1 Update `SpecRunner/README.md`'s "Untracked PR" sections for `implement-workflow`, `update-workflow`, and `finalize-workflow` to describe the adoption attempt and its possible outcomes, replacing the current "the PR wasn't opened by /propose" framing.

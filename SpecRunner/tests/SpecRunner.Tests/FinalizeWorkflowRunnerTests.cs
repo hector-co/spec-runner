@@ -30,7 +30,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
         }
     }
 
-    private (FinalizeWorkflowRunner Runner, RecordingGitService Git, RecordingGitHubService GitHub, FakeCliAgentSessionFactory CliFactory, SqliteStateStore StateStore, FakeTasksFileReader TasksFileReader) CreateRunner(
+    private (FinalizeWorkflowRunner Runner, RecordingGitService Git, RecordingGitHubService GitHub, FakeCliAgentSessionFactory CliFactory, SqliteStateStore StateStore, FakeTasksFileReader TasksFileReader, FakePrAdoptionService PrAdoptionService) CreateRunner(
         TimeSpan? taskTimeout = null,
         Func<ICliAgentSession>? sessionFactory = null)
     {
@@ -46,8 +46,10 @@ public class FinalizeWorkflowRunnerTests : IDisposable
             TaskTimeout = taskTimeout ?? TimeSpan.FromSeconds(30)
         });
 
-        var runner = new FinalizeWorkflowRunner(gitHub, git, stateStore, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<FinalizeWorkflowRunner>.Instance);
-        return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader);
+        var prAdoptionService = new FakePrAdoptionService();
+
+        var runner = new FinalizeWorkflowRunner(gitHub, git, stateStore, prAdoptionService, cliFactory, tasksFileReader, commandTemplateRenderer, options, NullLogger<FinalizeWorkflowRunner>.Instance);
+        return (runner, git, gitHub, cliFactory, stateStore, tasksFileReader, prAdoptionService);
     }
 
     private static GitHubPullRequest PullRequest(int number, string headBranch, string title = "Title", string body = "Body")
@@ -63,7 +65,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [InlineData("  /finalize  ")]
     public async Task EligibleCommentBodiesReceiveEyesReaction(string body)
     {
-        var (runner, _, gitHub, _, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _, _) = CreateRunner();
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, body) };
 
@@ -79,7 +81,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [InlineData("some text mentioning /finalize mid-sentence")]
     public async Task NonEligibleCommentBodiesAreIgnored(string body)
     {
-        var (runner, _, gitHub, _, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _, _) = CreateRunner();
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, body) };
 
@@ -91,7 +93,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task InstructionsStripLeadingTriggerTokenAndSeparatingWhitespace()
     {
-        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner();
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize the export button task was implemented under a different name") };
@@ -112,7 +114,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task CommentWithExistingBotReactionIsSkipped()
     {
-        var (runner, git, gitHub, cliFactory, _, _) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, _, _, _) = CreateRunner();
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
         gitHub.Reactions[9001] = new List<GitHubReaction> { new(gitHub.Login, "+1") };
@@ -127,7 +129,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task CommentWithOnlyHumanReactionIsStillProcessed()
     {
-        var (runner, _, gitHub, _, _, _) = CreateRunner();
+        var (runner, _, gitHub, _, _, _, _) = CreateRunner();
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
         gitHub.Reactions[9001] = new List<GitHubReaction> { new("a-human", "eyes") };
@@ -140,7 +142,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task UntrackedPrGetsExplanatoryReplyAndConfusedReactionWithNoFurtherWork()
     {
-        var (runner, git, gitHub, cliFactory, stateStore, _) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
 
@@ -157,9 +159,94 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task SuccessfulAdoptionWithIssueProceedsLikeATrackedPr()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, prAdoptionService) = CreateRunner();
+        prAdoptionService.Result = PrAdoptionResult.Success(
+            new TrackedIssue(45, "add-csv-export") { PrNumber = 12, BranchName = "contributor/csv-export" });
+        gitHub.PullRequests.Add(PullRequest(12, "contributor/csv-export", title: "Add CSV export"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
+
+        await runner.RunOnceAsync();
+
+        var adoptionCall = Assert.Single(prAdoptionService.Calls);
+        Assert.Equal((12, "contributor/csv-export"), adoptionCall);
+        Assert.Contains("Commit:finalizing specs for #45", git.Calls);
+        Assert.Contains(gitHub.UpdatedPullRequestDescriptions, d => d.PrNumber == 12 && d.Body.EndsWith("\n\nCloses #45", StringComparison.Ordinal));
+        Assert.Contains(12, gitHub.MarkedReadyForReview);
+        Assert.Contains((9001L, "+1"), gitHub.AddedReactions);
+
+        var tracked = await stateStore.FindByPrNumberAsync(12);
+        Assert.NotNull(tracked);
+        Assert.Equal(45, tracked!.IssueNumber);
+    }
+
+    [Fact]
+    public async Task SuccessfulAdoptionWithoutIssueProceedsWithoutOne()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, prAdoptionService) = CreateRunner();
+        prAdoptionService.Result = PrAdoptionResult.Success(
+            new TrackedIssue(null, "add-csv-export") { PrNumber = 12, BranchName = "contributor/csv-export" });
+        gitHub.PullRequests.Add(PullRequest(12, "contributor/csv-export", title: "Add CSV export"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains("Commit:finalizing specs for PR #12", git.Calls);
+        Assert.DoesNotContain(gitHub.UpdatedPullRequestDescriptions, d => d.Body.Contains("Closes #"));
+        Assert.DoesNotContain(gitHub.UpdatedPullRequestTitles, t => t.PrNumber == 12);
+        Assert.Contains(12, gitHub.MarkedReadyForReview);
+        Assert.Contains((9001L, "+1"), gitHub.AddedReactions);
+
+        var tracked = await stateStore.FindByPrNumberAsync(12);
+        Assert.NotNull(tracked);
+        Assert.Null(tracked!.IssueNumber);
+    }
+
+    [Fact]
+    public async Task AdoptionFailureForMultipleSpecFoldersRefusesWithCandidateList()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, prAdoptionService) = CreateRunner();
+        prAdoptionService.Result = PrAdoptionResult.MultipleSpecFoldersFound(new[] { "add-csv-export", "add-pdf-export" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "confused"), gitHub.AddedReactions);
+        Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12 && c.Body.Contains("add-csv-export") && c.Body.Contains("add-pdf-export"));
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
+        Assert.Empty(gitHub.MarkedReadyForReview);
+
+        var tracked = await stateStore.FindByPrNumberAsync(12);
+        Assert.Null(tracked);
+    }
+
+    [Fact]
+    public async Task AdoptionFailureForMultipleIssuesRefusesWithCandidateList()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, prAdoptionService) = CreateRunner();
+        prAdoptionService.Result = PrAdoptionResult.MultipleIssuesFound(new[] { 45, 46 });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "confused"), gitHub.AddedReactions);
+        Assert.Contains(gitHub.WrittenPrComments, c => c.PrNumber == 12 && c.Body.Contains("#45") && c.Body.Contains("#46"));
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
+        Assert.Empty(gitHub.MarkedReadyForReview);
+
+        var tracked = await stateStore.FindByPrNumberAsync(12);
+        Assert.Null(tracked);
+    }
+
+    [Fact]
     public async Task SuccessfulRunRefreshesBranchCommitsPushesMarksReadyAndUpdatesState()
     {
-        var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, stateStore, tasksFileReader, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         tasksFileReader.ArchivedContentBySpecName["45-add-login-page"] = "## 1. Tasks\n- [x] 1.1 Done";
         gitHub.PullRequests.Add(PullRequest(12, "feature/45", title: "Implementations for #45: Add login page"));
@@ -201,7 +288,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task MissingArchivedTasksFileStillAppendsClosingLink()
     {
-        var (runner, _, gitHub, _, stateStore, _) = CreateRunner();
+        var (runner, _, gitHub, _, stateStore, _, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12 });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
@@ -215,7 +302,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task TrackedBranchNameIsUsedEvenWhenItDiffersFromPrHeadBranch()
     {
-        var (runner, git, gitHub, _, stateStore, _) = CreateRunner();
+        var (runner, git, gitHub, _, stateStore, _, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45-2" });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
@@ -230,7 +317,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task FailureMarkingPrReadyForReviewIsReportedAsError()
     {
-        var (runner, git, gitHub, cliFactory, stateStore, _) = CreateRunner();
+        var (runner, git, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
         gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
         gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/finalize") };
@@ -252,7 +339,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     public async Task ThrownExceptionDuringProcessingIsReportedAndProcessingContinuesToNextComment()
     {
         var callCount = 0;
-        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner(
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner(
             sessionFactory: () =>
             {
                 callCount++;
@@ -287,7 +374,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     [Fact]
     public async Task ExceedingTaskTimeoutStopsSessionAndReportsTimeout()
     {
-        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner(
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner(
             taskTimeout: TimeSpan.FromMilliseconds(50),
             sessionFactory: () => new FakeCliAgentSession(CliAgentSessionState.Completed, readEventsDelay: TimeSpan.FromSeconds(5)));
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-spec") { PrNumber = 12 });
@@ -312,7 +399,7 @@ public class FinalizeWorkflowRunnerTests : IDisposable
     public async Task EligibleCommentsAreProcessedSequentiallyNotConcurrently()
     {
         var tracker = new ConcurrencyTracker();
-        var (runner, _, gitHub, cliFactory, stateStore, _) = CreateRunner(
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner(
             sessionFactory: () => new TrackingCliAgentSession(tracker, TimeSpan.FromMilliseconds(30)));
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-spec") { PrNumber = 12 });
         await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(46, "46-spec") { PrNumber = 13 });
