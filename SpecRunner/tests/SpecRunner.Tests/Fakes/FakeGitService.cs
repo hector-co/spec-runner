@@ -21,4 +21,9 @@ public class FakeGitService : IGitService
     public Task CommitAsync(string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task PushAsync(string branchName, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public IReadOnlyList<string> AddedSpecFolderNamesResult { get; set; } = Array.Empty<string>();
+
+    public Task<IReadOnlyList<string>> ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken cancellationToken = default)
+        => Task.FromResult(AddedSpecFolderNamesResult);
 }

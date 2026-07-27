@@ -262,6 +262,47 @@ public class GitHubService : IGitHubService
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<int>> ListClosingIssueNumbersAsync(int prNumber, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        var query = new
+        {
+            query = "query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { closingIssuesReferences(first: 100) { nodes { number } } } } }",
+            variables = new { owner, name = repo, number = prNumber }
+        };
+
+        using var response = await SendAsync(HttpMethod.Post, "https://api.github.com/graphql", query, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        if (document.RootElement.TryGetProperty("errors", out var errorsElement)
+            && errorsElement.ValueKind == JsonValueKind.Array
+            && errorsElement.GetArrayLength() > 0)
+        {
+            var message = errorsElement[0].TryGetProperty("message", out var messageElement)
+                ? messageElement.GetString()
+                : "unknown GraphQL error";
+            throw new GitHubApiException($"GitHub GraphQL query closingIssuesReferences failed for PR #{prNumber}: {message}");
+        }
+
+        var issueNumbers = new List<int>();
+        if (document.RootElement.TryGetProperty("data", out var dataElement)
+            && dataElement.TryGetProperty("repository", out var repositoryElement)
+            && repositoryElement.ValueKind == JsonValueKind.Object
+            && repositoryElement.TryGetProperty("pullRequest", out var pullRequestElement)
+            && pullRequestElement.ValueKind == JsonValueKind.Object
+            && pullRequestElement.TryGetProperty("closingIssuesReferences", out var closingIssuesElement)
+            && closingIssuesElement.TryGetProperty("nodes", out var nodesElement))
+        {
+            foreach (var node in nodesElement.EnumerateArray())
+            {
+                issueNumbers.Add(node.GetProperty("number").GetInt32());
+            }
+        }
+
+        return issueNumbers;
+    }
+
     private async Task<IReadOnlyList<GitHubIssueComment>> ListIssueCommentsAsync(string owner, string repo, int issueNumber, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/issues/{issueNumber}/comments?per_page=100", null, cancellationToken).ConfigureAwait(false);

@@ -1,68 +1,4 @@
-# finalize-workflow
-
-## Purpose
-
-TBD - defines the `/finalize` comment workflow: scanning open PRs for
-eligible `/finalize` trigger comments, refreshing the PR's branch, running
-the CLI coding agent to archive the associated spec/change, committing and
-pushing the result, marking the PR ready for review, and reporting success
-or failure back on the comment and in the state store.
-
-## Requirements
-
-### Requirement: A scan pass finds eligible `/finalize` comments once per invocation
-`SpecRunner.Core` SHALL define an `IFinalizeWorkflowRunner` with a single
-`RunOnceAsync` operation. `SpecRunner.Console` SHALL provide the
-implementation, which lists open pull requests and their comments via
-`IGitHubService`, and treats a comment as an eligible trigger when its
-body, trimmed of leading/trailing whitespace, is exactly `/finalize` or
-starts with `/finalize` followed by whitespace.
-
-#### Scenario: Exact-match comment is eligible
-- **WHEN** a scan pass finds an open-PR comment whose trimmed body is
-  exactly `/finalize`
-- **THEN** that comment SHALL be treated as an eligible trigger
-
-#### Scenario: Comment with trailing text after the token is eligible
-- **WHEN** a scan pass finds a comment whose trimmed body starts with
-  `/finalize` followed by a space or newline
-- **THEN** that comment SHALL be treated as an eligible trigger, with the
-  text after the token (and its separating whitespace) available as the
-  comment's instructions
-
-#### Scenario: Comment that merely contains the token is not eligible
-- **WHEN** a scan pass finds a comment whose body contains `/finalize`
-  somewhere other than as its leading token (e.g. mid-sentence, or as
-  `/finalized`)
-- **THEN** that comment SHALL NOT be treated as an eligible trigger
-
-### Requirement: Comments already reacted to by the bot are skipped
-A scan pass SHALL skip an otherwise-eligible comment if it already carries
-an `eyes`, `+1`, or `confused` reaction from the authenticated bot
-identity, so re-running the scan never reprocesses a comment that is
-in-progress, done, or already reported as errored. `+1` stands in for a
-checkmark, since the GitHub REST API's reaction set has no literal
-checkmark.
-
-#### Scenario: Comment with an existing bot reaction is skipped
-- **WHEN** an eligible comment already carries a `+1` reaction from the
-  bot's own login
-- **THEN** the scan pass SHALL NOT reprocess that comment
-
-#### Scenario: Comment with only a human reaction is still eligible
-- **WHEN** an eligible comment carries an `eyes` reaction from a login
-  other than the bot's
-- **THEN** the scan pass SHALL still process that comment
-
-### Requirement: An eligible comment is marked in-progress before any other action
-The workflow SHALL add an `eyes` reaction to a newly eligible comment via
-`IGitHubService`, as the first action taken for that comment, before
-performing any git, CLI-agent, or further GitHub operation for it.
-
-#### Scenario: Eyes reaction precedes any other work
-- **WHEN** the workflow begins processing a newly eligible comment
-- **THEN** an `eyes` reaction SHALL be added to that comment before any
-  git command, CLI-agent session, or additional GitHub call is made for it
+## MODIFIED Requirements
 
 ### Requirement: A comment on an untracked PR triggers an adoption attempt
 The workflow SHALL look up the triggering comment's PR via
@@ -91,63 +27,6 @@ state-store write for that comment.
   the triggering comment SHALL receive a `confused` reaction, and no git
   operation, CLI-agent session, or state-store write SHALL occur for that
   comment
-
-### Requirement: A tracked PR's branch is cleaned and refreshed from its recorded name before the CLI agent runs
-The workflow SHALL, for an eligible comment whose PR has a tracked
-state-store record and in this order: discard any uncommitted or
-untracked changes on whatever branch is currently checked out via
-`IGitService.ResetHardAsync("HEAD")`, fetch the tracked record's
-`BranchName` via `IGitService.FetchAsync`, switch to it via
-`IGitService.SwitchBranchAsync`, and hard-reset it to
-`origin/{BranchName}` via `IGitService.ResetHardAsync`, so the local
-clone matches the PR's remote branch exactly, with any local changes
-discarded, before any change is made, even if the clone was left dirty on
-an unrelated branch by a previous run. The workflow SHALL use the tracked
-record's `BranchName` for this sequence (and for the later push), not the
-PR's live head branch as reported by GitHub.
-
-#### Scenario: Working tree is cleaned before switching to the tracked branch
-- **WHEN** the workflow processes an eligible comment on a tracked PR
-  while the local clone has uncommitted changes left over from a previous
-  run, checked out on an unrelated branch
-- **THEN** those changes SHALL be discarded before the clone is switched
-  to the tracked record's branch
-
-#### Scenario: Branch is refreshed to match its remote tip using the recorded branch name
-- **WHEN** the workflow processes an eligible comment on a tracked PR
-  whose tracked record has `BranchName` `"feature/45"`
-- **THEN** `"feature/45"` SHALL be fetched, checked out, and hard-reset to
-  `"origin/feature/45"` before the CLI agent is started, regardless of
-  what branch name the PR currently reports on GitHub
-
-### Requirement: The CLI coding agent is run with a natural-language archive instruction rendered from the `archive` command template
-After refreshing the branch, the workflow SHALL render the `archive`
-command template via `ICommandTemplateRenderer` with `spec_name` set to
-the tracked record's spec/change name and `instructions` set to the
-triggering comment's trimmed body with the leading `/finalize` token and
-its separating whitespace removed, start a new CLI agent session via
-`ICliAgentSessionFactory`, and send it the rendered template's content as
-the initial prompt, wrapped in a literal pair of escaped double quotes
-(`\"...\"`), matching `propose-workflow`, `implement-workflow`, and
-`update-workflow`'s existing prompt-quoting convention. Like
-`update-workflow`, the `archive` template's rendered content SHALL NOT be
-an `/opsx-*` slash command. The workflow SHALL then await the session
-reaching a terminal state (`Completed` or `Failed`). No part of the
-prompt SHALL be built via C# string interpolation.
-
-#### Scenario: Prompt combines the resolved spec name and stripped comment body, plus the standing unattended-run instruction
-- **WHEN** the workflow runs the CLI agent for a tracked PR with spec name
-  `"45-add-login-page"` and a triggering comment body of `"/finalize the
-  export button task was implemented under a different name"`
-- **THEN** the `archive` template SHALL be rendered with `spec_name` set
-  to `"45-add-login-page"` and `instructions` set to `"the export button
-  task was implemented under a different name"`, and the session SHALL be
-  started with an initial prompt whose content is that rendered text —
-  beginning `"Run \`openspec archive \"45-add-login-page\" --yes\`. Mark
-  missing tasks as completed and continue.\nthe export button task was
-  implemented under a different name"` and ending with the standing
-  unattended-run instruction block — wrapped in a literal pair of double
-  quotes
 
 ### Requirement: A completed CLI-agent run is committed, pushed, and the PR is marked ready for review
 When the CLI agent session reaches state `Completed`, the workflow SHALL
@@ -273,14 +152,3 @@ pass rather than aborting the whole run.
 - **THEN** the session SHALL be stopped via `StopAsync`, the comment SHALL
   receive a `confused` reaction, and the reply comment SHALL indicate that
   processing timed out
-
-### Requirement: Comments are processed sequentially within a scan pass
-`RunOnceAsync` SHALL process eligible comments one at a time, completing
-each comment's full cycle (or recording its error/timeout) before
-starting the next, since all comments in a scan pass share the same local
-clone.
-
-#### Scenario: A second eligible comment is not started until the first finishes
-- **WHEN** a scan pass finds two eligible comments on different PRs
-- **THEN** processing of the second comment SHALL NOT begin until the
-  first comment has reached a terminal outcome (done or error)

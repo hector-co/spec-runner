@@ -144,4 +144,10 @@ public class RecordingGitHubService : IGitHubService
         UpdatedPullRequestTitles.Add((prNumber, title));
         return Task.CompletedTask;
     }
+
+    public Dictionary<int, List<int>> ClosingIssueNumbersByPrNumber { get; } = new();
+
+    public Task<IReadOnlyList<int>> ListClosingIssueNumbersAsync(int prNumber, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<int>>(
+            ClosingIssueNumbersByPrNumber.TryGetValue(prNumber, out var list) ? list : new List<int>());
 }

@@ -24,6 +24,7 @@ public class DependencyInjectionSmokeTests
         services.AddSingleton<ICommandTemplateRenderer, CommandTemplateRenderer>();
         services.AddSingleton<IGitService, FakeGitService>();
         services.AddSingleton<IGitHubService, FakeGitHubService>();
+        services.AddSingleton<IPrAdoptionService, FakePrAdoptionService>();
         services.AddSingleton<IStateStore>(_ => new SqliteStateStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "state.db")));
         services.AddOptions<SpecRunnerOptions>();
         services.AddOptions<CliAgentOptions>();
@@ -45,6 +46,7 @@ public class DependencyInjectionSmokeTests
         Assert.NotNull(provider.GetRequiredService<ICommandTemplateRenderer>());
         Assert.NotNull(provider.GetRequiredService<IGitService>());
         Assert.NotNull(provider.GetRequiredService<IGitHubService>());
+        Assert.NotNull(provider.GetRequiredService<IPrAdoptionService>());
         Assert.NotNull(provider.GetRequiredService<IRepositoryConnectionTester>());
         Assert.NotNull(provider.GetRequiredService<ICliAgentSessionFactory>());
         Assert.NotNull(provider.GetRequiredService<ICliToolAvailabilityChecker>());

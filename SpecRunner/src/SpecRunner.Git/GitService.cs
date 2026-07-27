@@ -57,9 +57,36 @@ public class GitService : IGitService
     public Task PushAsync(string branchName, CancellationToken cancellationToken = default)
         => RunGitAsync(cancellationToken, "push", "--set-upstream", "origin", branchName);
 
+    public async Task<IReadOnlyList<string>> ListAddedSpecFolderNamesAsync(string baseBranch, string headBranch, CancellationToken cancellationToken = default)
+    {
+        var arguments = new[] { "diff", "--name-only", $"origin/{baseBranch}...origin/{headBranch}", "--", "openspec/changes" };
+        var (exitCode, stdOut, stdErr) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
+
+        if (exitCode != 0)
+        {
+            throw new GitCommandException($"git {string.Join(' ', arguments)}", exitCode, stdErr);
+        }
+
+        var folderNames = new List<string>();
+        foreach (var line in stdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var segments = line.Trim().Split('/');
+            if (segments.Length >= 3 && segments[0] == "openspec" && segments[1] == "changes")
+            {
+                var folderName = segments[2];
+                if (!folderNames.Contains(folderName, StringComparer.Ordinal))
+                {
+                    folderNames.Add(folderName);
+                }
+            }
+        }
+
+        return folderNames;
+    }
+
     private async Task RunGitAsync(CancellationToken cancellationToken, params string[] arguments)
     {
-        var (exitCode, stdErr) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
+        var (exitCode, _, stdErr) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
 
         if (exitCode != 0)
         {
@@ -69,11 +96,11 @@ public class GitService : IGitService
 
     private async Task<int> RunGitAllowingFailureAsync(CancellationToken cancellationToken, params string[] arguments)
     {
-        var (exitCode, _) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
+        var (exitCode, _, _) = await RunGitCoreAsync(cancellationToken, arguments).ConfigureAwait(false);
         return exitCode;
     }
 
-    private async Task<(int ExitCode, string StdErr)> RunGitCoreAsync(CancellationToken cancellationToken, params string[] arguments)
+    private async Task<(int ExitCode, string StdOut, string StdErr)> RunGitCoreAsync(CancellationToken cancellationToken, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -99,8 +126,8 @@ public class GitService : IGitService
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
 
         var stdErr = await stdErrTask.ConfigureAwait(false);
-        await stdOutTask.ConfigureAwait(false);
+        var stdOut = await stdOutTask.ConfigureAwait(false);
 
-        return (process.ExitCode, stdErr);
+        return (process.ExitCode, stdOut, stdErr);
     }
 }

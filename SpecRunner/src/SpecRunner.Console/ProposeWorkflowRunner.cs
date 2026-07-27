@@ -252,7 +252,7 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
 
         await _stateStore.UpsertTrackedIssueAsync(new TrackedIssue(comment.IssueNumber, specName) { BranchName = branchName, PrNumber = prNumber }, cancellationToken).ConfigureAwait(false);
         await _stateStore.UpsertCommentAsync(
-            comment.IssueNumber,
+            prNumber,
             new TrackedComment(comment.CommentId, CommentKind.IssueComment, CommentStatus.Done),
             cancellationToken).ConfigureAwait(false);
     }
@@ -284,10 +284,13 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         var specName = existingIssue?.SpecName ?? _specNameResolver.Resolve(comment.IssueNumber, comment.IssueTitle);
         var issueToUpsert = existingIssue ?? new TrackedIssue(comment.IssueNumber, specName);
 
-        await _stateStore.UpsertTrackedIssueAsync(issueToUpsert, cancellationToken).ConfigureAwait(false);
-        await _stateStore.UpsertCommentAsync(
-            comment.IssueNumber,
-            new TrackedComment(comment.CommentId, CommentKind.IssueComment, status),
-            cancellationToken).ConfigureAwait(false);
+        var upserted = await _stateStore.UpsertTrackedIssueAsync(issueToUpsert, cancellationToken).ConfigureAwait(false);
+        if (upserted.PrNumber is int prNumber)
+        {
+            await _stateStore.UpsertCommentAsync(
+                prNumber,
+                new TrackedComment(comment.CommentId, CommentKind.IssueComment, status),
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 }

@@ -276,10 +276,11 @@ public class ProposeWorkflowRunnerTests : IDisposable
             gitHub.CreatedComments,
             c => c.IssueNumber == 45 && c.Body == "Processing this comment failed: Could not resolve a spec folder for issue #45.");
 
+        // No PR exists yet at the point of failure, so comment status bookkeeping
+        // (now keyed by PR number) has nothing to key off and is skipped.
         var tracked = await stateStore.FindByIssueNumberAsync(45);
         Assert.NotNull(tracked);
-        var comment = Assert.Single(tracked!.Comments);
-        Assert.Equal(CommentStatus.Error, comment.Status);
+        Assert.Empty(tracked!.Comments);
     }
 
     [Fact]
@@ -298,10 +299,11 @@ public class ProposeWorkflowRunnerTests : IDisposable
             gitHub.CreatedComments,
             c => c.IssueNumber == 45 && c.Body == "Processing this comment failed: GitHub API call failed with HTTP 422: validation failed");
 
+        // The draft PR creation call itself is what throws, so no PR exists yet at
+        // the point of failure; comment status bookkeeping (keyed by PR number) is skipped.
         var trackedFailed = await stateStore.FindByIssueNumberAsync(45);
         Assert.NotNull(trackedFailed);
-        var failedComment = Assert.Single(trackedFailed!.Comments);
-        Assert.Equal(CommentStatus.Error, failedComment.Status);
+        Assert.Empty(trackedFailed!.Comments);
 
         Assert.Contains((9002L, "rocket"), gitHub.AddedReactions);
         var trackedSucceeded = await stateStore.FindByIssueNumberAsync(46);
@@ -328,10 +330,11 @@ public class ProposeWorkflowRunnerTests : IDisposable
         Assert.Contains((9001L, "confused"), gitHub.AddedReactions);
         Assert.Contains(gitHub.CreatedComments, c => c.IssueNumber == 45 && c.Body == "Processing this comment timed out.");
 
+        // No PR exists yet at the point of the timeout, so comment status bookkeeping
+        // (now keyed by PR number) has nothing to key off and is skipped.
         var tracked = await stateStore.FindByIssueNumberAsync(45);
         Assert.NotNull(tracked);
-        var comment = Assert.Single(tracked!.Comments);
-        Assert.Equal(CommentStatus.Error, comment.Status);
+        Assert.Empty(tracked!.Comments);
     }
 
     [Fact]

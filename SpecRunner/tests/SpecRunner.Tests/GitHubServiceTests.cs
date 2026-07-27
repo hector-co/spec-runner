@@ -324,6 +324,50 @@ public class GitHubServiceTests
     }
 
     [Fact]
+    public async Task ListClosingIssueNumbersAsyncReturnsEmptyForNoLinkedIssues()
+    {
+        var service = CreateService(request =>
+        {
+            Assert.Equal("https://api.github.com/graphql", request.RequestUri!.ToString());
+            return JsonResponse(HttpStatusCode.OK, """{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[]}}}}}""");
+        });
+
+        var issueNumbers = await service.ListClosingIssueNumbersAsync(12);
+
+        Assert.Empty(issueNumbers);
+    }
+
+    [Fact]
+    public async Task ListClosingIssueNumbersAsyncReturnsSingleLinkedIssue()
+    {
+        var service = CreateService(_ => JsonResponse(HttpStatusCode.OK, """{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":45}]}}}}}"""));
+
+        var issueNumbers = await service.ListClosingIssueNumbersAsync(12);
+
+        Assert.Equal(new[] { 45 }, issueNumbers);
+    }
+
+    [Fact]
+    public async Task ListClosingIssueNumbersAsyncReturnsAllLinkedIssuesWhenMultiple()
+    {
+        var service = CreateService(_ => JsonResponse(HttpStatusCode.OK, """{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":45},{"number":46}]}}}}}"""));
+
+        var issueNumbers = await service.ListClosingIssueNumbersAsync(12);
+
+        Assert.Equal(new[] { 45, 46 }, issueNumbers);
+    }
+
+    [Fact]
+    public async Task ListClosingIssueNumbersAsyncThrowsGitHubApiExceptionOnGraphQlErrorPayload()
+    {
+        var service = CreateService(_ => JsonResponse(HttpStatusCode.OK, """{"errors":[{"message":"Could not resolve to a PullRequest"}]}"""));
+
+        var exception = await Assert.ThrowsAsync<GitHubApiException>(() => service.ListClosingIssueNumbersAsync(12));
+
+        Assert.Contains("Could not resolve to a PullRequest", exception.Message);
+    }
+
+    [Fact]
     public async Task NonSuccessResponseThrowsGitHubApiExceptionWithStatusCode()
     {
         var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)
