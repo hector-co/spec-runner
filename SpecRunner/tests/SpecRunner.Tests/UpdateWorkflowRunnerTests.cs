@@ -55,8 +55,8 @@ public class UpdateWorkflowRunnerTests : IDisposable
     private static GitHubPullRequest PullRequest(int number, string headBranch, string title = "Title", string body = "Body")
         => new(number, title, body, headBranch);
 
-    private static PrComment Comment(long id, string body, string author = "someone")
-        => new(id, author, body, DateTimeOffset.UtcNow);
+    private static PrComment Comment(long id, string body, string author = "someone", string authorAssociation = "OWNER")
+        => new(id, author, authorAssociation, body, DateTimeOffset.UtcNow);
 
     [Theory]
     [InlineData("/update")]
@@ -109,6 +109,21 @@ public class UpdateWorkflowRunnerTests : IDisposable
             $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
             $"continue.\"",
             session.LastPrompt);
+    }
+
+    [Fact]
+    public async Task UnauthorizedAuthorCommentIsIgnored()
+    {
+        var (runner, git, gitHub, cliFactory, _, _, _) = CreateRunner();
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrComments[12] = new List<PrComment> { Comment(9001, "/update", author: "rando", authorAssociation: "NONE") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Empty(gitHub.AddedReactions);
+        Assert.Empty(gitHub.WrittenPrComments);
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
     }
 
     [Fact]

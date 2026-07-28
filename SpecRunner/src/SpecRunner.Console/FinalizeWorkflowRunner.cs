@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
 using SpecRunner.Core.Models;
@@ -54,10 +55,22 @@ public class FinalizeWorkflowRunner : IFinalizeWorkflowRunner
             var comments = await _gitHub.ReadPrCommentsAsync(pr.Number, cancellationToken).ConfigureAwait(false);
             foreach (var comment in comments)
             {
-                if (TryGetInstructions(comment.Body, out var instructions))
+                if (!TryGetInstructions(comment.Body, out var instructions))
                 {
-                    eligibleComments.Add(new EligibleFinalizeComment(pr.Number, pr.HeadBranch, pr.Title, comment.CommentId, instructions));
+                    continue;
                 }
+
+                if (!CommentAuthorization.IsAuthorized(comment.Author, comment.AuthorAssociation, _options))
+                {
+                    _logger.LogWarning(
+                        "Ignoring /finalize comment {CommentId} on PR #{PrNumber} from unauthorized author {Author}",
+                        comment.CommentId,
+                        pr.Number,
+                        comment.Author);
+                    continue;
+                }
+
+                eligibleComments.Add(new EligibleFinalizeComment(pr.Number, pr.HeadBranch, pr.Title, comment.CommentId, instructions, comment.Author, comment.AuthorAssociation));
             }
         }
 

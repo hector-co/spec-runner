@@ -56,8 +56,8 @@ public class ProposeWorkflowRunnerTests : IDisposable
     private static GitHubIssue Issue(int number, string title, string body, params GitHubIssueComment[] comments)
         => new(number, title, body, comments);
 
-    private static GitHubIssueComment Comment(long id, string body, string author = "someone")
-        => new(id, author, body, DateTimeOffset.UtcNow);
+    private static GitHubIssueComment Comment(long id, string body, string author = "someone", string authorAssociation = "OWNER")
+        => new(id, author, authorAssociation, body, DateTimeOffset.UtcNow);
 
     [Theory]
     [InlineData("/propose")]
@@ -87,6 +87,20 @@ public class ProposeWorkflowRunnerTests : IDisposable
         await runner.RunOnceAsync();
 
         Assert.Empty(gitHub.AddedReactions);
+    }
+
+    [Fact]
+    public async Task UnauthorizedAuthorCommentIsIgnored()
+    {
+        var (runner, git, gitHub, cliFactory, _, _, _) = CreateRunner();
+        gitHub.Issues.Add(Issue(45, "Add Login Page", "We need a login page.", Comment(9001, "/propose", author: "rando", authorAssociation: "NONE")));
+
+        await runner.RunOnceAsync();
+
+        Assert.Empty(gitHub.AddedReactions);
+        Assert.Empty(gitHub.CreatedComments);
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
     }
 
     [Fact]
