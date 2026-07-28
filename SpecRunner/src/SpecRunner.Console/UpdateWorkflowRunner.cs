@@ -70,13 +70,34 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
                     continue;
                 }
 
-                eligibleComments.Add(new EligibleUpdateComment(pr.Number, pr.HeadBranch, comment.CommentId, instructions, comment.Author, comment.AuthorAssociation));
+                eligibleComments.Add(new EligibleUpdateComment(pr.Number, pr.HeadBranch, comment.CommentId, instructions, comment.Author, comment.AuthorAssociation, CommentKind.PrIssueComment, FileName: null));
+            }
+
+            var reviewComments = await _gitHub.ListPrReviewCommentsAsync(pr.Number, cancellationToken).ConfigureAwait(false);
+            foreach (var reviewComment in reviewComments)
+            {
+                if (!TryGetInstructions(reviewComment.Body, out var instructions))
+                {
+                    continue;
+                }
+
+                if (!CommentAuthorization.IsAuthorized(reviewComment.Author, reviewComment.AuthorAssociation, _options))
+                {
+                    _logger.LogWarning(
+                        "Ignoring /update review comment {CommentId} on PR #{PrNumber} from unauthorized author {Author}",
+                        reviewComment.CommentId,
+                        pr.Number,
+                        reviewComment.Author);
+                    continue;
+                }
+
+                eligibleComments.Add(new EligibleUpdateComment(pr.Number, pr.HeadBranch, reviewComment.CommentId, instructions, reviewComment.Author, reviewComment.AuthorAssociation, CommentKind.PrReviewComment, reviewComment.Path));
             }
         }
 
         foreach (var comment in eligibleComments)
         {
-            var reactions = await _gitHub.ListCommentReactionsAsync(comment.CommentId, cancellationToken).ConfigureAwait(false);
+            var reactions = await ListReactionsAsync(comment, cancellationToken).ConfigureAwait(false);
             var alreadyHandled = reactions.Any(reaction =>
                 reaction.AuthorLogin == botLogin && BotStatusReactionTypes.Contains(reaction.ReactionType));
 
@@ -114,7 +135,7 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
     {
         _logger.LogInformation("Starting /update flow for PR #{PrNumber} (comment {CommentId})", comment.PrNumber, comment.CommentId);
 
-        await _gitHub.AddCommentReactionAsync(comment.CommentId, "eyes", cancellationToken).ConfigureAwait(false);
+        await AddReactionAsync(comment, "eyes", cancellationToken).ConfigureAwait(false);
 
         TrackedIssue? trackedIssue = null;
         ICliAgentSession? session = null;
@@ -145,13 +166,21 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
             _logger.LogDebug("Finished git sync for PR #{PrNumber}", comment.PrNumber);
 
             _logger.LogDebug("Starting prompt rendering for PR #{PrNumber}", comment.PrNumber);
+            var templateValues = new Dictionary<string, string>
+            {
+                ["spec_name"] = trackedIssue.SpecName,
+                ["instructions"] = comment.Instructions
+            };
+            var templateName = "update";
+            if (comment.Kind == CommentKind.PrReviewComment)
+            {
+                templateName = "update-file";
+                templateValues["file_name"] = comment.FileName!;
+            }
+
             var prompt = await _commandTemplateRenderer.RenderAsync(
-                "update",
-                new Dictionary<string, string>
-                {
-                    ["spec_name"] = trackedIssue.SpecName,
-                    ["instructions"] = comment.Instructions
-                },
+                templateName,
+                templateValues,
                 timeoutCts.Token).ConfigureAwait(false);
             _logger.LogDebug("Finished prompt rendering for PR #{PrNumber}", comment.PrNumber);
 
@@ -234,18 +263,18 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
 
     private async Task ReportAdoptionFailureAsync(EligibleUpdateComment comment, PrAdoptionResult adoptionResult, CancellationToken cancellationToken)
     {
-        await _gitHub.WritePrCommentAsync(comment.PrNumber, adoptionResult.FailureMessage, cancellationToken).ConfigureAwait(false);
-        await _gitHub.AddCommentReactionAsync(comment.CommentId, "confused", cancellationToken).ConfigureAwait(false);
+        await ReplyAsync(comment, adoptionResult.FailureMessage, cancellationToken).ConfigureAwait(false);
+        await AddReactionAsync(comment, "confused", cancellationToken).ConfigureAwait(false);
     }
 
     private async Task ReportSuccessAsync(EligibleUpdateComment comment, TrackedIssue trackedIssue, CancellationToken cancellationToken)
     {
-        await _gitHub.AddCommentReactionAsync(comment.CommentId, "+1", cancellationToken).ConfigureAwait(false);
-        await _gitHub.WritePrCommentAsync(comment.PrNumber, "Pushed changes for this comment.", cancellationToken).ConfigureAwait(false);
+        await AddReactionAsync(comment, "+1", cancellationToken).ConfigureAwait(false);
+        await ReplyAsync(comment, "Pushed changes for this comment.", cancellationToken).ConfigureAwait(false);
 
         await _stateStore.UpsertCommentAsync(
             comment.PrNumber,
-            new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, CommentStatus.Done),
+            new TrackedComment(comment.CommentId, comment.Kind, CommentStatus.Done),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -257,8 +286,8 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
             comment.PrNumber,
             _options.TaskTimeout);
 
-        await _gitHub.AddCommentReactionAsync(comment.CommentId, "confused", cancellationToken).ConfigureAwait(false);
-        await _gitHub.WritePrCommentAsync(comment.PrNumber, "Processing this comment timed out.", cancellationToken).ConfigureAwait(false);
+        await AddReactionAsync(comment, "confused", cancellationToken).ConfigureAwait(false);
+        await ReplyAsync(comment, "Processing this comment timed out.", cancellationToken).ConfigureAwait(false);
         await RecordCommentStatusAsync(comment, trackedIssue, CommentStatus.Error, cancellationToken).ConfigureAwait(false);
     }
 
@@ -266,8 +295,8 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
     {
         _logger.LogError(ex, "Error processing /update comment {CommentId} on PR #{PrNumber}", comment.CommentId, comment.PrNumber);
 
-        await _gitHub.AddCommentReactionAsync(comment.CommentId, "confused", cancellationToken).ConfigureAwait(false);
-        await _gitHub.WritePrCommentAsync(comment.PrNumber, $"Processing this comment failed: {ex.Message}", cancellationToken).ConfigureAwait(false);
+        await AddReactionAsync(comment, "confused", cancellationToken).ConfigureAwait(false);
+        await ReplyAsync(comment, $"Processing this comment failed: {ex.Message}", cancellationToken).ConfigureAwait(false);
         await RecordCommentStatusAsync(comment, trackedIssue, CommentStatus.Error, cancellationToken).ConfigureAwait(false);
     }
 
@@ -280,7 +309,22 @@ public class UpdateWorkflowRunner : IUpdateWorkflowRunner
 
         await _stateStore.UpsertCommentAsync(
             comment.PrNumber,
-            new TrackedComment(comment.CommentId, CommentKind.PrIssueComment, status),
+            new TrackedComment(comment.CommentId, comment.Kind, status),
             cancellationToken).ConfigureAwait(false);
     }
+
+    private Task<IReadOnlyList<GitHubReaction>> ListReactionsAsync(EligibleUpdateComment comment, CancellationToken cancellationToken)
+        => comment.Kind == CommentKind.PrReviewComment
+            ? _gitHub.ListReviewCommentReactionsAsync(comment.CommentId, cancellationToken)
+            : _gitHub.ListCommentReactionsAsync(comment.CommentId, cancellationToken);
+
+    private Task AddReactionAsync(EligibleUpdateComment comment, string reactionType, CancellationToken cancellationToken)
+        => comment.Kind == CommentKind.PrReviewComment
+            ? _gitHub.AddReviewCommentReactionAsync(comment.CommentId, reactionType, cancellationToken)
+            : _gitHub.AddCommentReactionAsync(comment.CommentId, reactionType, cancellationToken);
+
+    private Task ReplyAsync(EligibleUpdateComment comment, string body, CancellationToken cancellationToken)
+        => comment.Kind == CommentKind.PrReviewComment
+            ? _gitHub.ReplyToReviewCommentAsync(comment.PrNumber, comment.CommentId, body, cancellationToken)
+            : _gitHub.WritePrCommentAsync(comment.PrNumber, body, cancellationToken);
 }

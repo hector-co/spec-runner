@@ -24,6 +24,14 @@ public interface IGitHubService
 
     Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<PrReviewComment>> ListPrReviewCommentsAsync(int prNumber, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GitHubReaction>> ListReviewCommentReactionsAsync(long commentId, CancellationToken cancellationToken = default);
+
+    Task AddReviewCommentReactionAsync(long commentId, string reactionType, CancellationToken cancellationToken = default);
+
+    Task ReplyToReviewCommentAsync(int prNumber, long commentId, string body, CancellationToken cancellationToken = default);
+
     Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default);
 
     Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default);

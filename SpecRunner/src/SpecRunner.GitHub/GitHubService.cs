@@ -210,6 +210,82 @@ public class GitHubService : IGitHubService
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<PrReviewComment>> ListPrReviewCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}/comments?per_page=100", null, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var comments = new List<PrReviewComment>();
+        foreach (var commentElement in document.RootElement.EnumerateArray())
+        {
+            var commentId = commentElement.GetProperty("id").GetInt64();
+            var path = commentElement.TryGetProperty("path", out var pathElement) && pathElement.ValueKind == JsonValueKind.String
+                ? pathElement.GetString() ?? string.Empty
+                : string.Empty;
+            var author = commentElement.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var loginElement)
+                ? loginElement.GetString() ?? string.Empty
+                : string.Empty;
+            var authorAssociation = commentElement.TryGetProperty("author_association", out var authorAssociationElement) && authorAssociationElement.ValueKind == JsonValueKind.String
+                ? authorAssociationElement.GetString() ?? "NONE"
+                : "NONE";
+            var body = commentElement.TryGetProperty("body", out var bodyElement) && bodyElement.ValueKind == JsonValueKind.String
+                ? bodyElement.GetString() ?? string.Empty
+                : string.Empty;
+            var createdAt = commentElement.TryGetProperty("created_at", out var createdAtElement)
+                ? createdAtElement.GetDateTimeOffset()
+                : DateTimeOffset.UtcNow;
+
+            comments.Add(new PrReviewComment(commentId, path, author, authorAssociation, body, createdAt));
+        }
+
+        return comments;
+    }
+
+    public async Task<IReadOnlyList<GitHubReaction>> ListReviewCommentReactionsAsync(long commentId, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{commentId}/reactions?per_page=100", null, cancellationToken).ConfigureAwait(false);
+        var document = await ParseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var reactions = new List<GitHubReaction>();
+        foreach (var reactionElement in document.RootElement.EnumerateArray())
+        {
+            var content = reactionElement.TryGetProperty("content", out var contentElement) ? contentElement.GetString() ?? string.Empty : string.Empty;
+            var login = reactionElement.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var loginElement)
+                ? loginElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            reactions.Add(new GitHubReaction(login, content));
+        }
+
+        return reactions;
+    }
+
+    public async Task AddReviewCommentReactionAsync(long commentId, string reactionType, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            $"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{commentId}/reactions",
+            new { content = reactionType },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ReplyToReviewCommentAsync(int prNumber, long commentId, string body, CancellationToken cancellationToken = default)
+    {
+        var (owner, repo) = GetOwnerRepo();
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}/comments",
+            new { body, in_reply_to = commentId },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default)
     {
         var (owner, repo) = GetOwnerRepo();
