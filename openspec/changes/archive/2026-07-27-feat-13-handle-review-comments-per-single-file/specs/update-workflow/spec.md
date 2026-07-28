@@ -1,16 +1,4 @@
-# update-workflow
-
-## Purpose
-
-Defines the `/update` comment workflow: how `SpecRunner.Console` detects an
-eligible `/update` comment — whether a general PR conversation comment or a
-file-anchored PR review comment — on an open pull request, refreshes that
-PR's branch, runs the CLI coding agent with a natural-language update
-instruction built from the tracked spec/change, the comment body, and (for
-a review comment) the commented-on file, commits and pushes the result,
-and reports success or failure back on the comment and in the state store.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: A scan pass finds eligible `/update` comments once per invocation
 `SpecRunner.Core` SHALL define an `IUpdateWorkflowRunner` with a single

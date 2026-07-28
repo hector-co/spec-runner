@@ -13,9 +13,17 @@ public class RecordingGitHubService : IGitHubService
 
     public Dictionary<int, List<PrComment>> PrComments { get; } = new();
 
+    public Dictionary<int, List<PrReviewComment>> PrReviewComments { get; } = new();
+
     public Dictionary<long, List<GitHubReaction>> Reactions { get; } = new();
 
+    public Dictionary<long, List<GitHubReaction>> ReviewCommentReactions { get; } = new();
+
     public List<(long CommentId, string ReactionType)> AddedReactions { get; } = new();
+
+    public List<(long CommentId, string ReactionType)> AddedReviewCommentReactions { get; } = new();
+
+    public List<(int PrNumber, long CommentId, string Body)> RepliedReviewComments { get; } = new();
 
     public List<(int IssueNumber, string Body)> CreatedComments { get; } = new();
 
@@ -103,6 +111,34 @@ public class RecordingGitHubService : IGitHubService
     public Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default)
     {
         WrittenPrComments.Add((prNumber, body));
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<PrReviewComment>> ListPrReviewCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<PrReviewComment>>(
+            PrReviewComments.TryGetValue(prNumber, out var list) ? list : new List<PrReviewComment>());
+
+    public Task<IReadOnlyList<GitHubReaction>> ListReviewCommentReactionsAsync(long commentId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubReaction>>(
+            ReviewCommentReactions.TryGetValue(commentId, out var list) ? list : new List<GitHubReaction>());
+
+    public Task AddReviewCommentReactionAsync(long commentId, string reactionType, CancellationToken cancellationToken = default)
+    {
+        AddedReviewCommentReactions.Add((commentId, reactionType));
+
+        if (!ReviewCommentReactions.TryGetValue(commentId, out var list))
+        {
+            list = new List<GitHubReaction>();
+            ReviewCommentReactions[commentId] = list;
+        }
+
+        list.Add(new GitHubReaction(Login, reactionType));
+        return Task.CompletedTask;
+    }
+
+    public Task ReplyToReviewCommentAsync(int prNumber, long commentId, string body, CancellationToken cancellationToken = default)
+    {
+        RepliedReviewComments.Add((prNumber, commentId, body));
         return Task.CompletedTask;
     }
 

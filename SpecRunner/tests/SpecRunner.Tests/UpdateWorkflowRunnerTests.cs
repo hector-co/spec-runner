@@ -58,6 +58,9 @@ public class UpdateWorkflowRunnerTests : IDisposable
     private static PrComment Comment(long id, string body, string author = "someone", string authorAssociation = "OWNER")
         => new(id, author, authorAssociation, body, DateTimeOffset.UtcNow);
 
+    private static PrReviewComment ReviewComment(long id, string path, string body, string author = "someone", string authorAssociation = "OWNER")
+        => new(id, path, author, authorAssociation, body, DateTimeOffset.UtcNow);
+
     [Theory]
     [InlineData("/update")]
     [InlineData("/update\nAdditional context")]
@@ -392,6 +395,117 @@ public class UpdateWorkflowRunnerTests : IDisposable
 
         Assert.Equal(2, cliFactory.CreatedSessions.Count);
         Assert.Equal(1, tracker.MaxConcurrent);
+    }
+
+    [Fact]
+    public async Task EligibleFileAnchoredReviewCommentIsDetectedWithItsFileName()
+    {
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update the login button must say Sign In") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "eyes"), gitHub.AddedReviewCommentReactions);
+        var session = Assert.IsType<FakeCliAgentSession>(Assert.Single(cliFactory.CreatedSessions));
+        Assert.Contains("File: src/Login.cs", session.LastPrompt);
+        Assert.Contains("the login button must say Sign In", session.LastPrompt);
+    }
+
+    [Fact]
+    public async Task AlreadyBotReactedReviewCommentIsSkipped()
+    {
+        var (runner, git, gitHub, cliFactory, _, _, _) = CreateRunner();
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update") };
+        gitHub.ReviewCommentReactions[9001] = new List<GitHubReaction> { new(gitHub.Login, "+1") };
+
+        await runner.RunOnceAsync();
+
+        Assert.DoesNotContain(gitHub.AddedReviewCommentReactions, r => r.CommentId == 9001);
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
+    }
+
+    [Fact]
+    public async Task UnauthorizedReviewCommentAuthorIsSilentlySkipped()
+    {
+        var (runner, git, gitHub, cliFactory, _, _, _) = CreateRunner();
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update", author: "rando", authorAssociation: "NONE") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Empty(gitHub.AddedReviewCommentReactions);
+        Assert.Empty(gitHub.RepliedReviewComments);
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
+    }
+
+    [Fact]
+    public async Task ReviewCommentOnUntrackedPrThatFailsAdoptionGetsThreadedReplyAndNoFurtherWork()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "confused"), gitHub.AddedReviewCommentReactions);
+        Assert.Contains(gitHub.RepliedReviewComments, c => c.PrNumber == 12 && c.CommentId == 9001);
+        Assert.Empty(gitHub.AddedReactions);
+        Assert.Empty(gitHub.WrittenPrComments);
+        Assert.Empty(git.Calls);
+        Assert.Empty(cliFactory.CreatedSessions);
+
+        var tracked = await stateStore.FindByPrNumberAsync(12);
+        Assert.Null(tracked);
+    }
+
+    [Fact]
+    public async Task SuccessfulRunOnReviewCommentPostsViaReviewCommentEndpointsAndRecordsKind()
+    {
+        var (runner, git, gitHub, cliFactory, stateStore, _, _) = CreateRunner();
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update the login button must say Sign In") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "+1"), gitHub.AddedReviewCommentReactions);
+        Assert.Contains(gitHub.RepliedReviewComments, c => c.PrNumber == 12 && c.CommentId == 9001);
+        Assert.Empty(gitHub.AddedReactions);
+        Assert.Empty(gitHub.WrittenPrComments);
+
+        var tracked = await stateStore.FindByIssueNumberAsync(45);
+        Assert.NotNull(tracked);
+        var comment = Assert.Single(tracked!.Comments);
+        Assert.Equal(CommentStatus.Done, comment.Status);
+        Assert.Equal(CommentKind.PrReviewComment, comment.CommentKind);
+    }
+
+    [Fact]
+    public async Task ErrorOnReviewCommentReportsViaReviewCommentEndpoints()
+    {
+        var (runner, _, gitHub, cliFactory, stateStore, _, _) = CreateRunner(
+            sessionFactory: () => new FakeCliAgentSession(CliAgentSessionState.Failed));
+        await stateStore.UpsertTrackedIssueAsync(new TrackedIssue(45, "45-add-login-page") { PrNumber = 12, BranchName = "feature/45" });
+        gitHub.PullRequests.Add(PullRequest(12, "feature/45"));
+        gitHub.PrReviewComments[12] = new List<PrReviewComment> { ReviewComment(9001, "src/Login.cs", "/update") };
+
+        await runner.RunOnceAsync();
+
+        Assert.Contains((9001L, "confused"), gitHub.AddedReviewCommentReactions);
+        Assert.Contains(gitHub.RepliedReviewComments, c => c.PrNumber == 12 && c.CommentId == 9001);
+        Assert.Empty(gitHub.AddedReactions);
+        Assert.Empty(gitHub.WrittenPrComments);
+
+        var tracked = await stateStore.FindByIssueNumberAsync(45);
+        Assert.NotNull(tracked);
+        var comment = Assert.Single(tracked!.Comments);
+        Assert.Equal(CommentStatus.Error, comment.Status);
+        Assert.Equal(CommentKind.PrReviewComment, comment.CommentKind);
     }
 
     private sealed class ConcurrencyTracker

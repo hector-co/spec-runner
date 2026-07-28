@@ -32,6 +32,16 @@ public class FakeGitHubService : IGitHubService
 
     public Task WritePrCommentAsync(int prNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task<IReadOnlyList<PrReviewComment>> ListPrReviewCommentsAsync(int prNumber, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<PrReviewComment>>(Array.Empty<PrReviewComment>());
+
+    public Task<IReadOnlyList<GitHubReaction>> ListReviewCommentReactionsAsync(long commentId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GitHubReaction>>(Array.Empty<GitHubReaction>());
+
+    public Task AddReviewCommentReactionAsync(long commentId, string reactionType, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task ReplyToReviewCommentAsync(int prNumber, long commentId, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task MarkPrReadyForReviewAsync(int prNumber, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task UpdatePullRequestDescriptionAsync(int prNumber, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;

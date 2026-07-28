@@ -76,6 +76,51 @@ public class CommandTemplateRendererTests
     }
 
     [Fact]
+    public async Task UpdateFileTemplatePlacesFileLineBetweenChangeNameAndInstructions()
+    {
+        var rendered = await _renderer.RenderAsync(
+            "update-file",
+            new Dictionary<string, string>
+            {
+                ["spec_name"] = "45-add-login-page",
+                ["file_name"] = "src/Login.cs",
+                ["instructions"] = "the login button must say Sign In"
+            });
+
+        Assert.Equal(
+            $"Update the OpenSpec change \"45-add-login-page\" to reflect the following new requirement/information:{Environment.NewLine}{Environment.NewLine}" +
+            $"File: src/Login.cs{Environment.NewLine}" +
+            $"the login button must say Sign In{Environment.NewLine}{Environment.NewLine}" +
+            $"This is an unattended run — do not ask for confirmation or clarification{Environment.NewLine}" +
+            $"at any step. If something is ambiguous, make the most reasonable{Environment.NewLine}" +
+            $"assumption, note it in proposal.md under a brief \"Assumptions\" note, and{Environment.NewLine}" +
+            $"continue.",
+            rendered);
+        Assert.DoesNotContain("{{", rendered);
+        Assert.DoesNotContain("}}", rendered);
+    }
+
+    [Fact]
+    public async Task UpdateFileTemplateEndsWithStandingUnattendedRunInstruction()
+    {
+        var rendered = await _renderer.RenderAsync(
+            "update-file",
+            new Dictionary<string, string>
+            {
+                ["spec_name"] = "45-add-login-page",
+                ["file_name"] = "src/Login.cs",
+                ["instructions"] = "the login button must say Sign In"
+            });
+
+        Assert.EndsWith(
+            "This is an unattended run — do not ask for confirmation or clarification" + Environment.NewLine +
+            "at any step. If something is ambiguous, make the most reasonable" + Environment.NewLine +
+            "assumption, note it in proposal.md under a brief \"Assumptions\" note, and" + Environment.NewLine +
+            "continue.",
+            rendered);
+    }
+
+    [Fact]
     public async Task AValueWithNoQuotesOrBackslashesIsUnaffected()
     {
         var rendered = await _renderer.RenderAsync(
