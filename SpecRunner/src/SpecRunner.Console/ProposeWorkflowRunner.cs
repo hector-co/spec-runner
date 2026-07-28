@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SpecRunner.Core;
 using SpecRunner.Core.Abstractions;
 using SpecRunner.Core.Configuration;
 using SpecRunner.Core.Models;
@@ -56,10 +57,22 @@ public class ProposeWorkflowRunner : IProposeWorkflowRunner
         {
             foreach (var comment in issue.Comments)
             {
-                if (IsEligibleTrigger(comment.Body))
+                if (!IsEligibleTrigger(comment.Body))
                 {
-                    eligibleComments.Add(new EligibleProposeComment(issue.Number, issue.Title, issue.Body, comment.CommentId));
+                    continue;
                 }
+
+                if (!CommentAuthorization.IsAuthorized(comment.Author, comment.AuthorAssociation, _options))
+                {
+                    _logger.LogWarning(
+                        "Ignoring /propose comment {CommentId} on issue #{IssueNumber} from unauthorized author {Author}",
+                        comment.CommentId,
+                        issue.Number,
+                        comment.Author);
+                    continue;
+                }
+
+                eligibleComments.Add(new EligibleProposeComment(issue.Number, issue.Title, issue.Body, comment.CommentId, comment.Author, comment.AuthorAssociation));
             }
         }
 

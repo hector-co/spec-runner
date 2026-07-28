@@ -183,6 +183,9 @@ public class GitHubService : IGitHubService
             var author = commentElement.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var loginElement)
                 ? loginElement.GetString() ?? string.Empty
                 : string.Empty;
+            var authorAssociation = commentElement.TryGetProperty("author_association", out var authorAssociationElement) && authorAssociationElement.ValueKind == JsonValueKind.String
+                ? authorAssociationElement.GetString() ?? "NONE"
+                : "NONE";
             var body = commentElement.TryGetProperty("body", out var bodyElement) && bodyElement.ValueKind == JsonValueKind.String
                 ? bodyElement.GetString() ?? string.Empty
                 : string.Empty;
@@ -190,7 +193,7 @@ public class GitHubService : IGitHubService
                 ? createdAtElement.GetDateTimeOffset()
                 : DateTimeOffset.UtcNow;
 
-            comments.Add(new PrComment(commentId, author, body, createdAt));
+            comments.Add(new PrComment(commentId, author, authorAssociation, body, createdAt));
         }
 
         return comments;
@@ -315,6 +318,9 @@ public class GitHubService : IGitHubService
             var author = commentElement.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var loginElement)
                 ? loginElement.GetString() ?? string.Empty
                 : string.Empty;
+            var authorAssociation = commentElement.TryGetProperty("author_association", out var authorAssociationElement) && authorAssociationElement.ValueKind == JsonValueKind.String
+                ? authorAssociationElement.GetString() ?? "NONE"
+                : "NONE";
             var body = commentElement.TryGetProperty("body", out var bodyElement) && bodyElement.ValueKind == JsonValueKind.String
                 ? bodyElement.GetString() ?? string.Empty
                 : string.Empty;
@@ -322,7 +328,7 @@ public class GitHubService : IGitHubService
                 ? createdAtElement.GetDateTimeOffset()
                 : DateTimeOffset.UtcNow;
 
-            comments.Add(new GitHubIssueComment(commentId, author, body, createdAt));
+            comments.Add(new GitHubIssueComment(commentId, author, authorAssociation, body, createdAt));
         }
 
         return comments;

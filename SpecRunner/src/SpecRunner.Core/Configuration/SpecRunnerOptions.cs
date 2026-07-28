@@ -15,4 +15,8 @@ public class SpecRunnerOptions
     public TimeSpan TaskTimeout { get; set; } = TimeSpan.FromMinutes(10);
 
     public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    public List<string> AllowedAuthorAssociations { get; set; } = new() { "OWNER", "MEMBER", "COLLABORATOR" };
+
+    public List<string> AllowedTriggerUsers { get; set; } = new();
 }
