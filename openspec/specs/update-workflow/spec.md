@@ -3,21 +3,30 @@
 ## Purpose
 
 Defines the `/update` comment workflow: how `SpecRunner.Console` detects an
-eligible `/update` comment on an open pull request, refreshes that PR's
-branch, runs the CLI coding agent with a natural-language update
-instruction built from the tracked spec/change and the comment body,
-commits and pushes the result, and reports success or failure back on the
-comment and in the state store.
+eligible `/update` comment — whether a general PR conversation comment or a
+file-anchored PR review comment — on an open pull request, refreshes that
+PR's branch, runs the CLI coding agent with a natural-language update
+instruction built from the tracked spec/change, the comment body, and (for
+a review comment) the commented-on file, commits and pushes the result,
+and reports success or failure back on the comment and in the state store.
 
 ## Requirements
 
 ### Requirement: A scan pass finds eligible `/update` comments once per invocation
 `SpecRunner.Core` SHALL define an `IUpdateWorkflowRunner` with a single
 `RunOnceAsync` operation. `SpecRunner.Console` SHALL provide the
-implementation, which lists open pull requests and their comments via
-`IGitHubService`, and treats a comment as an eligible trigger when its body,
-trimmed of leading/trailing whitespace, is exactly `/update` or starts with
-`/update` followed by whitespace.
+implementation, which lists open pull requests via `IGitHubService`, and for
+each one lists both its conversation comments (via `ReadPrCommentsAsync`)
+and its review comments (via `ListPrReviewCommentsAsync`). The
+implementation SHALL treat a comment from either source as an eligible
+trigger when its body, trimmed of leading/trailing whitespace, is exactly
+`/update` or starts with `/update` followed by whitespace, applying
+identical token-matching to both sources. An eligible comment sourced from
+`ReadPrCommentsAsync` SHALL be recorded with kind `CommentKind.PrIssueComment`
+and no file name; an eligible comment sourced from
+`ListPrReviewCommentsAsync` SHALL be recorded with kind
+`CommentKind.PrReviewComment` and the file path GitHub reports for that
+review comment.
 
 #### Scenario: Exact-match comment is eligible
 - **WHEN** a scan pass finds an open-PR comment whose trimmed body is
@@ -37,12 +46,24 @@ trimmed of leading/trailing whitespace, is exactly `/update` or starts with
   `/updated`)
 - **THEN** that comment SHALL NOT be treated as an eligible trigger
 
+#### Scenario: A file-anchored review comment matching the trigger token is eligible
+- **WHEN** a scan pass finds a PR review comment anchored to file
+  `"src/Login.cs"` whose trimmed body is `"/update the login button must
+  say Sign In"`
+- **THEN** that comment SHALL be treated as an eligible trigger with kind
+  `CommentKind.PrReviewComment`, file name `"src/Login.cs"`, and
+  instructions `"the login button must say Sign In"`
+
 ### Requirement: Comments already reacted to by the bot are skipped
 A scan pass SHALL skip an otherwise-eligible comment if it already carries
 an `eyes`, `+1`, or `confused` reaction from the authenticated bot identity,
 so re-running the scan never reprocesses a comment that is in-progress,
 done, or already reported as errored. `+1` stands in for a checkmark, since
-the GitHub REST API's reaction set has no literal checkmark.
+the GitHub REST API's reaction set has no literal checkmark. For a comment
+sourced from `ReadPrCommentsAsync` (kind `PrIssueComment`), reactions SHALL
+be read via `ListCommentReactionsAsync`; for a comment sourced from
+`ListPrReviewCommentsAsync` (kind `PrReviewComment`), reactions SHALL be read
+via `ListReviewCommentReactionsAsync`.
 
 #### Scenario: Comment with an existing bot reaction is skipped
 - **WHEN** an eligible comment already carries a `+1` reaction from the
@@ -53,6 +74,11 @@ the GitHub REST API's reaction set has no literal checkmark.
 - **WHEN** an eligible comment carries an `eyes` reaction from a login
   other than the bot's
 - **THEN** the scan pass SHALL still process that comment
+
+#### Scenario: A review comment with an existing bot reaction is skipped
+- **WHEN** an eligible review comment already carries a `+1` reaction from
+  the bot's own login, as reported by `ListReviewCommentReactionsAsync`
+- **THEN** the scan pass SHALL NOT reprocess that comment
 
 ### Requirement: An eligible `/update` comment is only processed if its author is authorized
 The workflow SHALL call `CommentAuthorization.IsAuthorized` with the triggering comment's author and author association when building the list of eligible comments, in addition to trigger-token matching. A comment whose trigger token matches but whose author is not authorized SHALL NOT be added to the eligible-comments list; the workflow SHALL instead log a warning identifying the comment id, PR number, and author, and SHALL NOT add any reaction to the comment, post any reply, or perform any PR-adoption, git, CLI-agent, or GitHub-write operation for it.
@@ -74,14 +100,22 @@ The workflow SHALL call `CommentAuthorization.IsAuthorized` with the triggering 
   requirement
 
 ### Requirement: An eligible comment is marked in-progress before any other action
-The workflow SHALL add an `eyes` reaction to a newly eligible comment via
-`IGitHubService`, as the first action taken for that comment, before
-performing any git, CLI-agent, or further GitHub operation for it.
+The workflow SHALL add an `eyes` reaction to a newly eligible comment before
+performing any git, CLI-agent, or further GitHub operation for it. For a
+comment of kind `PrIssueComment` this SHALL use
+`IGitHubService.AddCommentReactionAsync`; for a comment of kind
+`PrReviewComment` this SHALL use `IGitHubService.AddReviewCommentReactionAsync`.
 
 #### Scenario: Eyes reaction precedes any other work
 - **WHEN** the workflow begins processing a newly eligible comment
 - **THEN** an `eyes` reaction SHALL be added to that comment before any git
   command, CLI-agent session, or additional GitHub call is made for it
+
+#### Scenario: A file-anchored comment receives its eyes reaction via the review-comment endpoint
+- **WHEN** the workflow begins processing a newly eligible comment of kind
+  `PrReviewComment`
+- **THEN** an `eyes` reaction SHALL be added to that comment via
+  `AddReviewCommentReactionAsync`, not `AddCommentReactionAsync`
 
 ### Requirement: A comment on an untracked PR triggers an adoption attempt
 The workflow SHALL look up the triggering comment's PR via
@@ -89,10 +123,14 @@ The workflow SHALL look up the triggering comment's PR via
 to adopt the PR as defined by the `pr-adoption` capability. If adoption
 succeeds, the workflow SHALL continue processing the comment using the
 newly upserted record exactly as it does for an already-tracked PR. If
-adoption fails, the workflow SHALL reply on the PR with the adoption
-failure's specific explanation, add a `confused` reaction to the triggering
-comment, and SHALL NOT perform any git operation, CLI-agent session, or
-state-store write for that comment.
+adoption fails, the workflow SHALL add a `confused` reaction to the
+triggering comment and reply to it with the adoption failure's specific
+explanation, and SHALL NOT perform any git operation, CLI-agent session, or
+state-store write for that comment. For a comment of kind
+`PrIssueComment`, the reply SHALL be posted via `WritePrCommentAsync`; for
+a comment of kind `PrReviewComment`, the reply SHALL be posted via
+`ReplyToReviewCommentAsync` so it threads under the triggering review
+comment.
 
 #### Scenario: Untracked PR that adopts successfully proceeds like a tracked PR
 - **WHEN** the workflow processes an eligible comment on PR `12`, the state
@@ -110,6 +148,16 @@ state-store write for that comment.
   the triggering comment SHALL receive a `confused` reaction, and no git
   operation, CLI-agent session, or state-store write SHALL occur for that
   comment
+
+#### Scenario: Untracked PR that fails adoption for a file-anchored comment gets a threaded reply
+- **WHEN** the workflow processes an eligible review comment of kind
+  `PrReviewComment` on PR `12`, the state store has no record with PR number
+  `12`, and adoption fails because no spec/change folder could be found
+- **THEN** the adoption failure's explanation SHALL be posted via
+  `ReplyToReviewCommentAsync` so it threads under the triggering comment,
+  that comment SHALL receive a `confused` reaction via
+  `AddReviewCommentReactionAsync`, and no git operation, CLI-agent session,
+  or state-store write SHALL occur for it
 
 ### Requirement: A tracked PR's branch is cleaned and refreshed from its recorded name before the CLI agent runs
 The workflow SHALL, for an eligible comment whose PR has a tracked
@@ -139,20 +187,24 @@ PR's live head branch as reported by GitHub.
   `"origin/feature/45"` before the CLI agent is started, regardless of
   what branch name the PR currently reports on GitHub
 
-### Requirement: The CLI coding agent is run with a natural-language update instruction rendered from the `update` command template
-After refreshing the branch, the workflow SHALL render the `update`
-command template via `ICommandTemplateRenderer` with `spec_name` set to
-the tracked record's spec/change name and `instructions` set to the
-triggering comment's trimmed body with the leading `/update` token and
-its separating whitespace removed, start a new CLI agent session via
-`ICliAgentSessionFactory`, and send it the rendered template's content as
-the initial prompt, wrapped in a literal pair of escaped double quotes
-(`\"...\"`), matching `propose-workflow` and `implement-workflow`'s
-existing prompt-quoting convention. Unlike `propose-workflow` and
-`implement-workflow`, the `update` template's rendered content SHALL NOT
-be an `/opsx-*` slash command. The workflow SHALL then await the session
-reaching a terminal state (`Completed` or `Failed`). No part of the
-prompt SHALL be built via C# string interpolation.
+### Requirement: The CLI coding agent is run with a natural-language update instruction rendered from the `update` or `update-file` command template
+After refreshing the branch, the workflow SHALL render a command template
+via `ICommandTemplateRenderer` with `spec_name` set to the tracked record's
+spec/change name and `instructions` set to the triggering comment's trimmed
+body with the leading `/update` token and its separating whitespace
+removed. For a comment of kind `PrIssueComment`, the workflow SHALL render
+the `update` template. For a comment of kind `PrReviewComment`, the
+workflow SHALL render the `update-file` template, additionally supplying
+`file_name` set to the comment's recorded file path. The workflow SHALL
+then start a new CLI agent session via `ICliAgentSessionFactory` and send
+it the rendered template's content as the initial prompt, wrapped in a
+literal pair of escaped double quotes (`\"...\"`), matching
+`propose-workflow` and `implement-workflow`'s existing prompt-quoting
+convention. Unlike `propose-workflow` and `implement-workflow`, neither
+template's rendered content SHALL be an `/opsx-*` slash command. The
+workflow SHALL then await the session reaching a terminal state
+(`Completed` or `Failed`). No part of the prompt SHALL be built via C#
+string interpolation.
 
 #### Scenario: Prompt combines the resolved spec name and stripped comment body, plus the standing unattended-run instruction
 - **WHEN** the workflow runs the CLI agent for a tracked PR with spec name
@@ -166,6 +218,17 @@ prompt SHALL be built via C# string interpolation.
   following new requirement/information:\nthe export button must also
   support CSV"` and ending with the standing unattended-run instruction
   block — wrapped in a literal pair of double quotes
+
+#### Scenario: Prompt for a file-anchored comment includes the commented-on file
+- **WHEN** the workflow runs the CLI agent for a tracked PR with spec name
+  `"45-add-login-page"` and a triggering review comment anchored to file
+  `"src/Login.cs"` with body `"/update the login button must say Sign
+  In"`
+- **THEN** the `update-file` template SHALL be rendered with `spec_name`
+  set to `"45-add-login-page"`, `file_name` set to `"src/Login.cs"`, and
+  `instructions` set to `"the login button must say Sign In"`, and the
+  rendered text SHALL contain a `File: src/Login.cs` line between the
+  change-name line and the instructions
 
 ### Requirement: A completed CLI-agent run is committed and pushed to the PR's existing branch
 When the CLI agent session reaches state `Completed`, the workflow SHALL
@@ -215,9 +278,15 @@ behavior for this same case.
 
 ### Requirement: A successful run reports back on the comment and in the state store
 After pushing, the workflow SHALL add a `+1` reaction to the triggering
-comment as a checkmark, post a reply comment confirming the push, and
-upsert the state store with the comment's processing status set to `done`
-under the tracked record's PR number.
+comment as a checkmark, post a reply confirming the push, and upsert the
+state store with the comment's processing status set to `done` under the
+tracked record's PR number, recording the comment's own kind
+(`CommentKind.PrIssueComment` or `CommentKind.PrReviewComment`). For a
+comment of kind `PrIssueComment`, the reaction SHALL be added via
+`AddCommentReactionAsync` and the reply via `WritePrCommentAsync`; for a
+comment of kind `PrReviewComment`, the reaction SHALL be added via
+`AddReviewCommentReactionAsync` and the reply via
+`ReplyToReviewCommentAsync`.
 
 #### Scenario: Successful outcome is reflected on GitHub and in the state store
 - **WHEN** the workflow successfully pushes changes for a triggering
@@ -226,17 +295,30 @@ under the tracked record's PR number.
   confirming the push SHALL be posted, and the state store SHALL record
   that comment's status as `done` under PR `12`
 
+#### Scenario: Successful outcome for a file-anchored comment is reported via the review-comment endpoints
+- **WHEN** the workflow successfully pushes changes for a triggering
+  comment of kind `PrReviewComment` on a tracked PR with PR number `12`
+- **THEN** the triggering comment SHALL receive a `+1` reaction via
+  `AddReviewCommentReactionAsync`, a reply confirming the push SHALL be
+  posted via `ReplyToReviewCommentAsync`, and the state store SHALL record
+  that comment's status as `done` with kind `CommentKind.PrReviewComment`
+  under PR `12`
+
 ### Requirement: Errors and timeouts are reported on the comment, not left silent
 The workflow SHALL add a `confused` reaction to the triggering comment, post
-a reply comment with a short, human-readable summary of the failure (not a
-raw stack trace or exception dump), and, for a comment on a tracked PR,
-upsert the state store recording the comment's processing status as `error`
-under the tracked record's PR number, whenever any step of processing an
-eligible comment throws or the whole per-comment cycle exceeds
-`SpecRunnerOptions.TaskTimeout` (in the timeout case, any in-flight CLI
-agent session SHALL also be stopped via `StopAsync`). Processing SHALL then
-continue to the next eligible comment in the scan pass rather than aborting
-the whole run.
+a reply with a short, human-readable summary of the failure (not a raw
+stack trace or exception dump), and, for a comment on a tracked PR, upsert
+the state store recording the comment's processing status as `error` under
+the tracked record's PR number and the comment's own kind, whenever any
+step of processing an eligible comment throws or the whole per-comment
+cycle exceeds `SpecRunnerOptions.TaskTimeout` (in the timeout case, any
+in-flight CLI agent session SHALL also be stopped via `StopAsync`). For a
+comment of kind `PrIssueComment`, the reaction and reply SHALL use
+`AddCommentReactionAsync`/`WritePrCommentAsync`; for a comment of kind
+`PrReviewComment`, they SHALL use
+`AddReviewCommentReactionAsync`/`ReplyToReviewCommentAsync`. Processing
+SHALL then continue to the next eligible comment in the scan pass rather
+than aborting the whole run.
 
 #### Scenario: An error during processing is reported and processing continues
 - **WHEN** an unhandled failure occurs while processing an eligible comment
@@ -253,10 +335,20 @@ the whole run.
   receive a `confused` reaction, and the reply comment SHALL indicate that
   processing timed out
 
+#### Scenario: An error processing a file-anchored comment is reported via the review-comment endpoints
+- **WHEN** an unhandled failure occurs while processing an eligible comment
+  of kind `PrReviewComment` on a tracked PR with PR number `12`
+- **THEN** that comment SHALL receive a `confused` reaction via
+  `AddReviewCommentReactionAsync` and a human-readable reply via
+  `ReplyToReviewCommentAsync`, and its state-store status SHALL be `error`
+  with kind `CommentKind.PrReviewComment` under PR `12`
+
 ### Requirement: Comments are processed sequentially within a scan pass
-`RunOnceAsync` SHALL process eligible comments one at a time, completing
-each comment's full cycle (or recording its error/timeout) before starting
-the next, since all comments in a scan pass share the same local clone.
+`RunOnceAsync` SHALL process eligible comments one at a time, regardless of
+whether each is sourced from PR conversation comments or PR review
+comments, completing each comment's full cycle (or recording its
+error/timeout) before starting the next, since all comments in a scan pass
+share the same local clone.
 
 #### Scenario: A second eligible comment is not started until the first finishes
 - **WHEN** a scan pass finds two eligible comments on different PRs
