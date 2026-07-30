@@ -1,4 +1,4 @@
-Run `openspec archive "{{spec_name}}" --yes`. Mark missing tasks as completed and continue.
+Run `openspec archive "{{spec_name}}" --yes`.
 {{instructions}}
 
 This is an unattended run — do not ask for confirmation or clarification
